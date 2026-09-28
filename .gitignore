@@ -1,6 +1,6 @@
 # --- Generated artefacts (regenerate by running the pipeline in numeric order) ---
-# The source .xlsx files in e_coli_dataset/data/ and mammalian/ ARE tracked, so a fresh
-# clone can run the pipeline as-is. Everything the pipeline writes is not.
+# The source .xlsx files in e_coli_dataset/data/ ARE tracked, so a fresh clone can
+# run the pipeline as-is. Everything the pipeline writes is not.
 e_coli_dataset/output/*
 !e_coli_dataset/output/.gitkeep
 
