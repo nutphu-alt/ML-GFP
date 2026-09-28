@@ -1,7 +1,173 @@
 # ML-GFP
-Machine learn prediction for optimization of GFP sequence
 
-The objective of this project is to use machine learning model to optimize GFP protein sequence.
-This project was 100% carried out by AI.
+Machine learning prediction for optimization of GFP sequence.
 
-This project is under development
+The objective of this project is to use a machine learning model to optimize green
+fluorescent protein sequence — predicting fold-wild-type brightness from amino-acid
+sequence, and using that predictor to propose brighter variants.
+
+This project was 100% carried out by AI. It is under active development.
+
+---
+
+## Documentation
+
+| File | What it is |
+|---|---|
+| [`e_coli/PROJECT_HANDOFF.md`](e_coli/PROJECT_HANDOFF.md) | **Start here.** Self-contained briefing: objective, all 13 steps, the five load-bearing findings, code inventory, environment constraints, what to do next. |
+| [`e_coli/EDA_summary.md`](e_coli/EDA_summary.md) | Chronological working log, written step by step as the project ran. |
+| [`e_coli/README.md`](e_coli/README.md) | Source dataset documentation — columns, provenance, wild-type reference points, data-quality decisions. |
+
+## The data
+
+Deep mutational scanning of four homologous GFPs expressed in *E. coli*, from
+Sarkisyan et al. 2016 and Gonzalez Somermeyer et al. 2022 — **141,150 variants**
+after cleaning, each with a sequence, a mutation list, and a measured brightness.
+
+| Backbone | Organism | WT length | Rows |
+|---|---|---|---|
+| avGFP | *Aequorea victoria* | 238 aa | 51,715 |
+| amacGFP | *Aequorea macrodactyla* | 238 aa | 33,511 |
+| ppluGFP2 | *Pontellina plumata* | 222 aa | 31,402 |
+| cgreGFP | *Clytia gregaria* | 235 aa | 24,516 |
+
+The 15 source `.xlsx` files (`e_coli/data/`) and all generated artefacts
+(`e_coli/output/`, ~475 MB of intermediates) are gitignored — the pipeline
+regenerates them.
+
+## Headline results
+
+Primary metric is **Spearman ρ**, because brightness is not comparable across the
+four libraries even after fold-WT normalisation (finding 1 in the handoff).
+
+**Interpolation** — ranking new combinations of already-characterised mutations:
+
+| model | random split ρ | R² |
+|---|---|---|
+| **MLP (512, 256)** | **0.911** | **0.870** |
+| Ridge (combined features) | 0.880 | 0.705 |
+| XGBoost | 0.813 | 0.665 |
+
+**Extrapolation** — scoring mutations at never-assayed positions (5-fold position CV,
+4,596 single mutants, every difference bootstrap-confirmed):
+
+| feature set | ρ |
+|---|---|
+| dense (66) | 0.438 |
+| dense + evo (77) | 0.478 |
+| **dense + evo + ESM-2 embeddings (109)** | **0.519** |
+
+Three results worth knowing before using any of this:
+
+- **The best model depends on the regime, and the answers are opposite.** The MLP wins
+  interpolation and is significantly *worse than plain ridge* at unseen positions;
+  XGBoost finishes last on the headline metric and wins extrapolation decisively.
+- **The ~0.5 extrapolation ρ is dead-vs-alive separation, not brightness ranking.**
+  Restricted to functional variants it is 0.247; above 1.0× WT it is negative. Design
+  by *invention* at never-assayed positions does not work.
+- **Design by recombination does work.** Restricting to novel combinations of
+  substitutions each individually measured ≥ 0.95× WT gives precision@20 of 0.65–0.90
+  at ≥ 1.2× WT against a 3.0% base rate, and the loop independently rediscovers the
+  superfolder GFP mutation set with no literature input.
+
+## Pipeline
+
+Scripts live in `e_coli/code/` and carry a two-digit run-order prefix, so the folder
+sorts in execution order. Each resolves paths relative to itself, so they run from
+anywhere.
+
+```
+01_clean_gfp_data.py          merge 15 xlsx -> clean -> tag backbone/source group
+02_make_splits.py             three split schemes (random, position-holdout, LOBO)
+03_build_features.py          sparse (6,559) + dense (66) feature matrices
+04_train_baselines.py         ridge baselines, both splits
+05_analyze_results.py         extrapolation-by-novelty breakdown
+06_compare_models.py          8 model families x 104 configs
+07_summarize_comparison.py    leaderboard + figure
+08_train_mlp_full.py          full-data MLP, epoch checkpointing
+09_analyze_extrapolation.py   novelty breakdown for the full-data MLP
+10_cross_val_extrapolation.py 5-fold position CV — the core benchmark
+11_analyze_extrapolation_cv.py pooled folds + paired bootstrap
+12_derive_wt_sequences.py     reconstruct + cross-check the 4 WT sequences
+13_lobo_eval.py               leave-one-backbone-out
+14_tune_xgb_extrapolation.py  XGBoost re-tune (negative result)
+15_plot_xgb_tune.py           figure
+16_align_backbones.py         Needleman-Wunsch star alignment
+17_evo_features.py            11 cross-homolog evolutionary features
+18_evo_benchmark.py           dense vs dense+evo on the step-5 folds
+19_evo_lobo.py                dense vs dense+evo, cross-protein
+20_two_stage_benchmark.py     classifier + functional-only regressor
+21_design_variants.py         design oracle, benchmark, beam search
+22_make_design_report.py      assembles design_panel.csv + design.png
+23_esm_scores.py              ESM-2 zero-shot masked-marginals
+24_esm_embed.py               ESM-2 per-residue embeddings, PCA-reduced
+25_esm_dims_sweep.py          PCA width sweep
+26_esm_benchmark.py           all ESM arms on the 5-fold CV
+27_lobo_esm.py                leave-one-backbone-out with ESM arms
+28_design_optimize.py         design-oracle re-tune (negative, kept as-is)
+29_design_stress_test.py      design benchmark split by near-neighbour
+30_make_esm_report.py         assembles esm.png
+31_make_slides.js             regenerates the results deck (pptxgenjs)
+```
+
+### Two things to know before editing
+
+**Six scripts are imported by later ones.** A Python module name cannot begin with a
+digit, so they are loaded by name:
+
+```python
+import importlib, sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+ef = importlib.import_module("17_evo_features")
+```
+
+`03_build_features` and `17_evo_features` ← `21_design_variants`;
+`16_align_backbones` ← `17_evo_features`;
+`18_evo_benchmark` ← `20_two_stage_benchmark`, `25_esm_dims_sweep`, `26_esm_benchmark`, `27_lobo_esm`;
+`24_esm_embed` ← `25_esm_dims_sweep`;
+`21_design_variants` ← `28_design_optimize`, `29_design_stress_test`.
+**Renumbering a file means updating the importlib string in every script that loads
+it** — the reference is a string, so nothing flags it until runtime.
+
+**The fold assignment must stay identical across scripts.** `assign_position_folds(meta,
+np.random.default_rng(7))` with `N_FOLDS = 5`, operating on `output/features/meta.csv`
+in stored order, is duplicated verbatim in `10_cross_val_extrapolation.py`,
+`14_tune_xgb_extrapolation.py` and `18_evo_benchmark.py`. Refactor all three together
+or the cross-step comparisons silently stop being paired.
+
+## Running it
+
+```bash
+pip install -r requirements.txt
+cd e_coli/code
+python 01_clean_gfp_data.py        # requires the 15 xlsx files in e_coli/data/
+python 02_make_splits.py
+python 03_build_features.py
+# ... in numeric order
+```
+
+Several scripts are **resume-safe by design** (`06`, `10`, `13`, `14`, `23`): they
+carry a `TIME_BUDGET` constant, append results as they complete, skip finished work on
+re-run, and exit with a "re-run to continue" message. Expect to invoke some of them
+repeatedly. This was a workaround for a ~180 s per-call wall-clock limit in the
+original environment; it is harmless elsewhere.
+
+The deck (`31_make_slides.js`) needs `npm install pptxgenjs`.
+
+## Standing conventions
+
+- Score cross-backbone work with **Spearman only** — never RMSE or R².
+- Select hyperparameters on **validation, never test**.
+- Any new extrapolation claim goes through the **5-fold pooled benchmark with a paired
+  bootstrap** before it is believed. Small-sample extrapolation checks have overstated
+  differences twice in this project.
+
+## References
+
+- Sarkisyan KS et al. *Local fitness landscape of the green fluorescent protein.*
+  Nature 533:397–401 (2016). [doi:10.1038/nature17995](https://doi.org/10.1038/nature17995)
+- Gonzalez Somermeyer L et al. *Heterogeneity of the GFP fitness landscape and
+  data-driven protein design.* eLife 11:e75842 (2022).
+  [doi:10.7554/eLife.75842](https://doi.org/10.7554/eLife.75842)
+- Meier J et al. *Language models enable zero-shot prediction of the effects of
+  mutations on protein function.* NeurIPS (2021).

@@ -1,0 +1,16 @@
+# Core pipeline (steps 1-10, 12-13)
+numpy
+pandas
+scipy
+scikit-learn
+xgboost
+joblib
+matplotlib
+openpyxl          # reading the 15 source .xlsx files in 01_clean_gfp_data.py
+
+# Step 11 only — ESM-2 scores and embeddings (23/24/25/26/27_*.py)
+# Install the CPU build of torch explicitly, e.g.
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch
+transformers      # --hf-model backend of 23_esm_scores.py
+fair-esm          # optional: --checkpoint backend (local .pt weights)

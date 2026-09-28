@@ -1,0 +1,28 @@
+# --- Large data and generated artefacts (regenerate by running the pipeline) ---
+e_coli/data/
+e_coli/output/
+mammalian/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# --- Notebooks ---
+.ipynb_checkpoints/
+
+# --- Node (31_make_slides.js) ---
+node_modules/
+package-lock.json
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Excel lock files ---
+~$*.xlsx
