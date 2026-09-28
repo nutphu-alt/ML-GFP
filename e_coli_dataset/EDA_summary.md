@@ -5,11 +5,17 @@
 ```
 e_coli_dataset/
 ├── EDA_summary.md              (this file)
-├── README.md                   (source dataset documentation)
-├── code/                       run in filename order (01 -> 31)
+├── README.md                   (pipeline + experiments guide)
+├── pipeline/                   the 8 scripts that produce the deliverable, in order
 │   ├── 01_clean_gfp_data.py            step 1:   merge + clean + tag + EDA plot
 │   ├── 02_make_splits.py               step 2:   build + verify train/val/test splits
 │   ├── 03_build_features.py            step 3a:  sparse + dense feature matrices  [imported]
+│   ├── 12_derive_wt_sequences.py       step 6:   reconstruct + cross-check the 4 WT sequences
+│   ├── 16_align_backbones.py           step 9a:  Needleman-Wunsch star alignment  [imported]
+│   ├── 17_evo_features.py              step 9b:  11 cross-homolog features  [imported]
+│   ├── 21_design_variants.py           step 10:  design oracle + benchmark + beam search  [imported]
+│   └── 22_make_design_report.py        step 10b: assembles design_panel.csv + design.png
+├── experiments/                model comparison, benchmarks, negative results
 │   ├── 04_train_baselines.py           step 3b:  ridge baselines, both splits
 │   ├── 05_analyze_results.py           step 3c:  extrapolation-by-novelty breakdown + figure
 │   ├── 06_compare_models.py            step 4a:  8 families x 104 configs (resume-safe)
@@ -18,17 +24,12 @@ e_coli_dataset/
 │   ├── 09_analyze_extrapolation.py     step 4d:  novelty breakdown for the full-data MLP
 │   ├── 10_cross_val_extrapolation.py   step 5a:  5-fold position CV (resume-safe, core benchmark)
 │   ├── 11_analyze_extrapolation_cv.py  step 5b:  pooled folds + paired bootstrap + figure
-│   ├── 12_derive_wt_sequences.py       step 6:   reconstruct + cross-check the 4 WT sequences
 │   ├── 13_lobo_eval.py                 step 7:   leave-one-backbone-out (resume-safe)
 │   ├── 14_tune_xgb_extrapolation.py    step 8:   XGBoost re-tune for extrapolation (negative)
 │   ├── 15_plot_xgb_tune.py             step 8:   figure
-│   ├── 16_align_backbones.py           step 9a:  Needleman-Wunsch star alignment  [imported]
-│   ├── 17_evo_features.py              step 9b:  11 cross-homolog features  [imported]
 │   ├── 18_evo_benchmark.py             step 9c:  dense vs dense+evo, defines the folds  [imported]
 │   ├── 19_evo_lobo.py                  step 9d:  dense vs dense+evo, cross-protein
 │   ├── 20_two_stage_benchmark.py       step 10a: classifier + functional-only regressor
-│   ├── 21_design_variants.py           step 10:  design oracle + benchmark + beam search  [imported]
-│   ├── 22_make_design_report.py        step 10b: assembles design_panel.csv + design.png
 │   ├── 23_esm_scores.py                step 11a: ESM-2 zero-shot masked-marginals (needs weights)
 │   ├── 24_esm_embed.py                 step 11b: ESM-2 per-residue embeddings, PCA  [imported]
 │   ├── 25_esm_dims_sweep.py            step 11b: PCA width sweep (flat; 16 kept)
@@ -40,7 +41,8 @@ e_coli_dataset/
 │   └── 31_make_slides.js               deck:     regenerates GFP_ML_results.pptx (pptxgenjs)
 │       [imported] = also loaded as a module by a later script;
 │       renumbering one means updating the importlib string that names it
-├── data/                       15 source GFP_variants_part*.xlsx files
+│       28 and 29 import 21 from pipeline/ and add it to sys.path
+├── dataset/                    15 source GFP_variants_part*.xlsx files + column docs
 └── output/
     ├── gfp_clean.pkl           intermediate cleaned dataframe
     ├── gfp_variants_clean.csv  cleaned, modeling-ready dataset
@@ -78,7 +80,7 @@ e_coli_dataset/
 
 **Mutation counts** per variant range from 0 (WT) to 43, with median 2–3 mutations across all backbones — consistent with the DMS libraries being low-order combinatorial mutants.
 
-## Step 2: train/val/test splits (`output/gfp_variants_split.csv`, built by `code/02_make_splits.py`)
+## Step 2: train/val/test splits (`output/gfp_variants_split.csv`, built by `pipeline/02_make_splits.py`)
 
 Three independent split schemes were added as columns on top of the cleaned data, all excluding the 6 engineered/classic rows:
 
@@ -90,7 +92,7 @@ Why this matters: the DMS libraries are combinatorial, so most variants differ f
 
 Verified: zero train rows touch a held-out position in any backbone, and the random split has zero duplicate-sequence leakage across train/val/test. (Two rows show up as "leaking" duplicates in the position-holdout split, but they're a real biological curiosity, not a bug: an avGFP wild-type sequence is byte-identical to a heavily "humanized" 38-mutation amacGFP variant — convergent sequences across two different backbones, which position-holdout can't detect since it partitions positions per-backbone.)
 
-## Step 3: baseline models (`code/03_build_features.py`, `04_train_baselines.py`, `05_analyze_results.py`)
+## Step 3: baseline models (`pipeline/03_build_features.py`, `04_train_baselines.py`, `05_analyze_results.py`)
 
 **Features.** Two blocks, 141,144 rows:
 
@@ -124,7 +126,7 @@ On pure extrapolation `ridge_sparse` scores **exactly** the mean-predictor floor
 
 **Second limitation** (middle panel of `output/baseline_results.png`): the model badly under-separates the dark mode, predicting ~0.5–0.75 for variants whose true brightness is ~0. An additive model cannot express "one bad mutation kills the protein regardless of the rest," which is exactly what the dark spike is.
 
-## Step 4: eight-model comparison (`code/06_compare_models.py`, `07_summarize_comparison.py`)
+## Step 4: eight-model comparison (`experiments/06_compare_models.py`, `07_summarize_comparison.py`)
 
 104 configurations across 8 model families, all on identical features and identical test sets. Hyperparameters selected on the **validation** split by Spearman ρ; test is never used for selection.
 
@@ -156,7 +158,7 @@ Test R² tells the same story even more strongly on the random split: MLP **0.87
 
 **L1 is actively harmful.** Lasso and ElasticNet trail ridge by ~0.03 ρ, and their best configs sit at the smallest penalty tested (α=1e-6) — i.e. the search wanted *as little L1 as possible*. Most mutations contribute a little signal, so zeroing coefficients discards real information.
 
-**The MLP wins outright once trained on the full data** (`code/08_train_mlp_full.py`). It reaches ρ=0.911 / R²=0.870 on the random split and ρ=0.823 on position-holdout, beating ridge on both. The prediction made from the subsample tier held: MLP led at equal data (0.848 vs 0.829), and scaling to all 113k rows added a further ~0.06 ρ.
+**The MLP wins outright once trained on the full data** (`experiments/08_train_mlp_full.py`). It reaches ρ=0.911 / R²=0.870 on the random split and ρ=0.823 on position-holdout, beating ridge on both. The prediction made from the subsample tier held: MLP led at equal data (0.848 vs 0.829), and scaling to all 113k rows added a further ~0.06 ρ.
 
 The gap is widest in R² (0.870 vs 0.705), which says the MLP is not merely ranking variants better but predicting their actual brightness far more accurately — consistent with it being the only model in the comparison that can represent the non-additive "one bad mutation kills the protein" behaviour driving the dark mode.
 
@@ -169,7 +171,7 @@ The gap is widest in R² (0.870 vs 0.705), which says the MLP is not merely rank
 - **Lasso/ElasticNet use SGD**, not exact coordinate descent — exact Lasso needs ~103s per fit on this matrix. Same penalty, approximate solver.
 - **HistGradientBoosting was excluded** — it cannot accept sparse input, and densifying 113k × 6,625 needs ~3 GB. XGBoost represents gradient boosting here.
 
-## Step 4d: does the MLP's advantage survive real extrapolation? (`code/09_analyze_extrapolation.py`)
+## Step 4d: does the MLP's advantage survive real extrapolation? (`experiments/09_analyze_extrapolation.py`)
 
 No — it disappears, and the ordering inverts. Position-holdout test set, Spearman ρ:
 
@@ -188,7 +190,7 @@ No — it disappears, and the ordering inverts. Position-holdout test set, Spear
 
 The practical implication: **model choice should depend on the use case.** For ranking recombinations of characterised mutations, the MLP is clearly best. For scoring mutations at positions never assayed — the harder and more valuable design problem — no model here does much better than ρ≈0.44, and the leader is the one that looked worst on the headline metric.
 
-## Step 5: the extrapolation benchmark, settled (`code/10_cross_val_extrapolation.py`, `11_analyze_extrapolation_cv.py`)
+## Step 5: the extrapolation benchmark, settled (`experiments/10_cross_val_extrapolation.py`, `11_analyze_extrapolation_cv.py`)
 
 Step 4d's finding rested on 293 single mutants with a CI that crossed zero. The dataset actually contains **4,596** single mutants — the old benchmark was small only because the position holdout withheld 6% of positions, so only 6% of them landed in test.
 
@@ -217,7 +219,7 @@ Step 4d's finding rested on 293 single mutants with a CI that crossed zero. The 
 
 The reading is that the MLP's extra capacity is spent learning the specific mutation landscape it was shown, which is exactly what fails to transfer. XGBoost's shallow-interaction structure generalises better to sites it has never seen. ppluGFP2 is the one backbone where the models tie, and it is also the one where every model does worst.
 
-## Step 6: ESM-2 scoring pipeline — written, waiting on weights (`code/23_esm_scores.py`)
+## Step 6: ESM-2 scoring pipeline — written, waiting on weights (`experiments/23_esm_scores.py`)
 
 Ready to run offline the moment an ESM-2 checkpoint and a Linux CPU PyTorch wheel are dropped into the project folder (this sandbox reaches PyPI only; both model-weight hosts and PyTorch's CPU index are blocked by its egress proxy).
 
@@ -228,7 +230,7 @@ Supporting work done and verified:
 - **Wild-type sequences derived and cross-checked** (`12_derive_wt_sequences.py`). Each backbone's WT was reconstructed by reverting every variant's own mutations independently: **141,141 of 141,142 reversions agree**. The single dissenter is `avGFP (parent, F64L)`, whose name parses `F64L` as a mutation — confirming the DMS library's reference is the **F64L parent** (L at position 64), which is what the mutation numbering is relative to.
 - **Pipeline dry-run validated**: with a random log-probability matrix, 100% of variants score correctly and the residue-consistency check catches exactly the one expected mismatch. Only the ~25 lines that call torch remain untested.
 
-## Step 7: leave-one-backbone-out (`code/13_lobo_eval.py`)
+## Step 7: leave-one-backbone-out (`experiments/13_lobo_eval.py`)
 
 The hardest generalisation test, and the last item pending from step 2: train on three backbones, predict the fourth. Scored with **Spearman only** — fold-WT brightness is not comparable across libraries (step 1).
 
@@ -248,7 +250,7 @@ The hardest generalisation test, and the last item pending from step 2: train on
 
 Per-backbone variance is large though: avGFP is easiest (ρ 0.62), ppluGFP2 and amacGFP hardest (0.34–0.42). avGFP being the easiest to predict from the others is consistent with the step-1 duplicate finding, where an amacGFP variant converged to an exactly avGFP sequence — those two backbones are related, so training on one genuinely informs the other.
 
-## Step 8: retuning XGBoost for extrapolation — a negative result (`code/14_tune_xgb_extrapolation.py`)
+## Step 8: retuning XGBoost for extrapolation — a negative result (`experiments/14_tune_xgb_extrapolation.py`)
 
 Every XGBoost number so far used one fixed config (`n_estimators=400, max_depth=8, learning_rate=0.1, subsample=0.8, colsample_bytree=0.8`) that was never actually chosen for this job — it came from the step-4 grid, which picked configs by validation Spearman on the **random** split, the one regime where XGBoost is weakest. Two hypotheses motivated a proper retune: (a) a config chosen for the extrapolation objective should do better than one chosen for interpolation, and (b) per step 7, the 6,559 sparse position indicators are dead weight once positions are unseen, so tuning can drop them and use the 66 dense descriptors only — cheaper fits, same fold definition as step 5 (`SEED=7`, `assign_position_folds`) so results are directly comparable.
 
@@ -267,7 +269,7 @@ Every XGBoost number so far used one fixed config (`n_estimators=400, max_depth=
 
 **A useful confirmation fell out of the same run.** The default config trained on dense-only features (no sparse block) scored ρ=0.4377 on pooled single mutants — statistically the same as step 5's combined-feature result (ρ=0.441, same fold definition, same 4,596 rows). This directly confirms step 7's finding on the harder within-protein extrapolation task, not just the cross-protein one: **the 6,559 sparse indicators can be dropped for any novel-position task at no measurable cost**, and dense-only fits ran roughly 2–4× faster in this run (2.5–8s vs the combined block's heavier per-fit cost in step 5).
 
-## Step 9: outside-the-assay information at last breaks the plateau (`code/16_align_backbones.py`, `17_evo_features.py`, `18_evo_benchmark.py`, `19_evo_lobo.py`)
+## Step 9: outside-the-assay information at last breaks the plateau (`pipeline/16_align_backbones.py`, `17_evo_features.py`, `18_evo_benchmark.py`, `19_evo_lobo.py`)
 
 Every model has plateaued near ρ≈0.44 at never-assayed positions for one reason: nothing in the 66 descriptors says anything about a *specific site*. BLOSUM62 knows how often Leu replaces Ile across all proteins; it does not know that position 66 is the chromophore tyrosine and must never change. Step 8 closed off hyperparameter tuning as a route to fixing that. The only remaining route is to import site-specific knowledge from outside this assay.
 

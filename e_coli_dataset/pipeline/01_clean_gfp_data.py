@@ -21,9 +21,9 @@ matplotlib.use('Agg')          # no display in this environment; write plots str
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# this file lives in e_coli_dataset/code/, so its parent's parent is the e_coli_dataset/ folder
+# this file lives in pipeline/, so its parent's parent is the project root
 BASE_DIR = Path(__file__).resolve().parent.parent
-SRC_DIR = BASE_DIR / "data"      # the 15 source .xlsx files
+SRC_DIR = BASE_DIR / "dataset"   # the 15 source .xlsx files
 OUT_DIR = BASE_DIR / "output"    # where cleaned outputs get written
 
 KNOWN_BACKBONES = {"avGFP", "amacGFP", "cgreGFP", "ppluGFP2"}

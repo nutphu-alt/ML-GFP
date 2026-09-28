@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# this file lives in e_coli_dataset/code/, so its parent's parent is the e_coli_dataset/ folder
+# this file lives in pipeline/, so its parent's parent is the project root
 BASE_DIR = Path(__file__).resolve().parent.parent
 OUT_DIR = BASE_DIR / "output"
 IN_PATH = OUT_DIR / "gfp_clean.pkl"
