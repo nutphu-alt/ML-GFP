@@ -1,8 +1,8 @@
 # --- Generated artefacts (regenerate by running the pipeline in numeric order) ---
-# The source .xlsx files in e_coli/data/ and mammalian/ ARE tracked, so a fresh
+# The source .xlsx files in e_coli_dataset/data/ and mammalian/ ARE tracked, so a fresh
 # clone can run the pipeline as-is. Everything the pipeline writes is not.
-e_coli/output/*
-!e_coli/output/.gitkeep
+e_coli_dataset/output/*
+!e_coli_dataset/output/.gitkeep
 
 # Excel lock files, in case the source workbooks get opened
 ~$*.xlsx

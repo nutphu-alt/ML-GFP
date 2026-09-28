@@ -3,7 +3,7 @@
 ## Folder layout
 
 ```
-e_coli/
+e_coli_dataset/
 ├── EDA_summary.md              (this file)
 ├── README.md                   (source dataset documentation)
 ├── code/                       run in filename order (01 -> 31)

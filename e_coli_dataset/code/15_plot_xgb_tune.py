@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-OUT_DIR = Path(r"/sessions/bold-admiring-volta/mnt/ML for GFP/e_coli/output")
+BASE_DIR = Path(__file__).resolve().parent.parent
+OUT_DIR = BASE_DIR / "output"
 
 results = pd.read_csv(OUT_DIR / "xgb_tune_results.csv").set_index("config")
 boot = pd.read_csv(OUT_DIR / "xgb_tune_bootstrap.csv").set_index("config")

@@ -280,7 +280,7 @@ These are the load-bearing conclusions. A new session should read these before d
 
 ## 6. Code inventory
 
-All scripts live in `e_coli/code/` and resolve paths relative to themselves (`BASE_DIR = Path(__file__).resolve().parent.parent`), so they can be run from anywhere. **Filenames carry a two-digit run-order prefix (`01_` … `31_`), so the folder sorts in execution order** and the table below is that order.
+All scripts live in `e_coli_dataset/code/` and resolve paths relative to themselves (`BASE_DIR = Path(__file__).resolve().parent.parent`), so they can be run from anywhere. **Filenames carry a two-digit run-order prefix (`01_` … `31_`), so the folder sorts in execution order** and the table below is that order.
 
 **How the numbered modules import each other.** A Python module name cannot begin with a digit, so the six scripts that are imported by others are loaded by name instead of with a plain `import`:
 

@@ -47,10 +47,6 @@ from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 
 BASE_DIR = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.name == "code") else Path(".")
-# fall back to explicit project layout when run from the scratch outputs dir
-CANDIDATE_BASE = Path(r"/sessions/bold-admiring-volta/mnt/ML for GFP/e_coli")
-if CANDIDATE_BASE.exists():
-    BASE_DIR = CANDIDATE_BASE
 OUT_DIR = BASE_DIR / "output"
 FEAT_DIR = OUT_DIR / "features"
 CV_DIR = OUT_DIR / "extrap_cv"
