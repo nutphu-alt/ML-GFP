@@ -89,7 +89,9 @@ def random_stratified_split(df: pd.DataFrame, rng: np.random.Generator) -> pd.Se
     )
 
     for _, stratum in groups.groupby(["Backbone", "brightness_bin"]):
-        group_ids = stratum.index.to_numpy()
+        # copy=True: pandas >= 3.0 returns a read-only view here, which
+        # rng.shuffle cannot mutate in place. Does not affect the result.
+        group_ids = stratum.index.to_numpy(copy=True)
         rng.shuffle(group_ids)
         n = len(group_ids)
         n_test = int(round(n * RANDOM_TEST_FRAC))

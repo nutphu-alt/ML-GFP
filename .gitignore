@@ -1,7 +1,11 @@
-# --- Large data and generated artefacts (regenerate by running the pipeline) ---
-e_coli/data/
-e_coli/output/
-mammalian/
+# --- Generated artefacts (regenerate by running the pipeline in numeric order) ---
+# The source .xlsx files in e_coli/data/ and mammalian/ ARE tracked, so a fresh
+# clone can run the pipeline as-is. Everything the pipeline writes is not.
+e_coli/output/*
+!e_coli/output/.gitkeep
+
+# Excel lock files, in case the source workbooks get opened
+~$*.xlsx
 
 # --- Python ---
 __pycache__/
@@ -24,5 +28,3 @@ package-lock.json
 .DS_Store
 Thumbs.db
 
-# --- Excel lock files ---
-~$*.xlsx
