@@ -46,7 +46,7 @@ from scipy.stats import spearmanr
 from sklearn.preprocessing import StandardScaler
 import xgboost as xgb
 
-BASE_DIR = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.name == "code") else Path(".")
+BASE_DIR = Path(__file__).resolve().parent.parent
 OUT_DIR = BASE_DIR / "output"
 FEAT_DIR = OUT_DIR / "features"
 CV_DIR = OUT_DIR / "extrap_cv"

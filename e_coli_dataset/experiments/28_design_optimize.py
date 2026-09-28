@@ -44,6 +44,7 @@ from sklearn.preprocessing import StandardScaler
 
 import importlib, sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 dv = importlib.import_module("21_design_variants")
 
 BASE_DIR = Path(__file__).resolve().parent.parent

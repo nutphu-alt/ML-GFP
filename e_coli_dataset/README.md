@@ -1,61 +1,117 @@
-# GFP variant dataset for sequence → fluorescence machine learning
+# E. coli GFP dataset — pipeline and experiments
 
-15 Excel files, 141,469 rows total, ≤10,000 rows each, sorted by MFI (descending; blank-MFI rows last).
-Every file also carries a **Notes & sources** sheet with the same information below.
+Predicting fold-wild-type fluorescence brightness from amino-acid sequence, and
+using that predictor to design brighter GFP variants.
 
-## Columns
+Project overview, headline results and setup are in the [repository
+README](../README.md). This file covers the layout and how to run it.
 
-| # | Column | Notes |
+## The deliverable
+
+`output/design_panel.csv` — 23 avGFP variants proposed for the bench, stratified
+by mutation count, every component substitution individually measured at ≥0.95×
+wild-type, and none of them existing library members.
+
+Expected hit rate is a **range, not a point estimate**: precision@20 is 0.65–0.90
+for ≥1.2× WT and ~0.35–0.45 for ≥1.5× WT, depending on whether a design has a
+near neighbour in the library. Even the pessimistic end is ~21× over the 3.0%
+base rate. The design loop independently rediscovers the superfolder GFP
+mutation set with no literature input.
+
+## Layout
+
+```
+e_coli_dataset/
+├── dataset/        15 source .xlsx files (+ README describing the columns)
+├── pipeline/       the 8 scripts that produce the deliverable — run in order
+├── experiments/    22 scripts: model comparison, benchmarks, negative results
+├── output/         generated — gitignored
+├── EDA_summary.md      chronological working log, steps 1–13
+└── PROJECT_HANDOFF.md  full briefing: findings, constraints, what to do next
+```
+
+## Running the pipeline
+
+Scripts are numbered in execution order and resolve all paths relative to
+themselves, so they can be run from any working directory.
+
+```bash
+pip install -r ../requirements.txt
+
+python pipeline/01_clean_gfp_data.py        # merge 15 xlsx -> gfp_clean.pkl + EDA plot
+python pipeline/02_make_splits.py           # three leakage-checked split schemes
+python pipeline/03_build_features.py        # sparse (6,559) + dense (66) matrices
+python pipeline/12_derive_wt_sequences.py   # reconstruct the 4 wild-type sequences
+python pipeline/16_align_backbones.py       # Needleman-Wunsch star alignment
+python pipeline/17_evo_features.py          # 11 cross-homolog evolutionary features
+python pipeline/21_design_variants.py       # design oracle + benchmark + beam search
+python pipeline/22_make_design_report.py    # -> design_panel.csv, design.png
+```
+
+The numbering is the project's original run order (`01`…`31`), kept so that the
+code inventory in `PROJECT_HANDOFF.md` and the cross-references between scripts
+stay valid. The eight above still sort into the correct sequence.
+
+The pipeline needs only the core dependencies — no PyTorch, no model downloads.
+`01` is what creates `output/`; everything downstream reads its `gfp_clean.pkl`,
+so run it first on a fresh clone.
+
+**One caveat:** panel (a) of `design.png` reads `output/extrap_cv/evo_fold*.npz`,
+produced by `experiments/18_evo_benchmark.py`. `design_panel.csv` itself does not
+depend on it.
+
+## What is in experiments/
+
+The work that established *why* the pipeline looks the way it does: baselines,
+an eight-family model comparison over 104 configurations, cross-validated
+extrapolation benchmarks, leave-one-backbone-out transfer, and the ESM-2 arms.
+
+It also holds the **negative results**, kept deliberately:
+
+| Script | Question | Answer |
 |---|---|---|
-| 1 | Protein sequence | Full-length amino-acid sequence |
-| 2 | Variant name | Backbone + mutation list, standard numbering (Met1 counted) |
-| 3 | Mean fluorescence intensity (MFI) | Source's own arbitrary units — **not comparable across backbones** |
-| 4 | % positive cells | Almost always blank (see below) |
-| 5 | Brightness value | **Use this as the ML label** — MFI ÷ wild-type MFI of the same backbone (fold-WT) |
-| 6 | Variant classification | Wild-type / directed evolution / rational-ML design / monomeric |
-| 7 | Cell type | |
-| 8 | Expression system | |
-| 9 | Analyzing method | Includes the units/scale for that row |
-| 10 | Reference | Full citation + DOI |
+| `14`, `15` | Retune XGBoost for extrapolation? | No — Δ +0.0015, CI [−0.015, +0.018] |
+| `20` | Two-stage classifier + regressor? | Marginal — AUC 0.778→0.791. Don't build on it |
+| `23` | ESM-2 zero-shot log-odds? | Significantly worse — −0.0345 ρ, CI [−0.0511, −0.0172] |
+| `25` | Wider ESM embedding block? | Flat — every CI spans zero |
+| `28` | Retune the design oracle? | No — CI [−0.074, +0.223], P(>0) = 0.785 |
 
-## Contents
+Two of these are load-bearing: `14` writes the paired baseline that
+`18_evo_benchmark.py` compares against, and `23` builds the feature matrix
+`26_esm_benchmark.py` needs for its comparison arms. Neither can be dropped
+without breaking a positive result.
 
-| Source | Rows | Assay |
-|---|---|---|
-| avGFP deep mutational scan — Sarkisyan et al. 2016 (re-filtered release from Gonzalez Somermeyer et al. 2022) | 51,715 | E. coli, FACS-seq |
-| amacGFP / ppluGFP2 / cgreGFP deep mutational scans — Gonzalez Somermeyer et al. 2022 | 89,429 | E. coli, FACS-seq |
-| ML-designed multi-mutants, experimentally validated — same 2022 study | 264 | E. coli, colony fluorescence microscopy |
-| Natural (wild-type) green FPs, full sequences + primary references | 49 | Spectrofluorometry |
-| Classic engineered avGFP-lineage variants (EGFP, sfGFP, Emerald, GFPuv, mEGFP, msfGFP, GFPmut2/3, Sapphire, …) | 12 | Molecular brightness (EC × QY) |
+Only `28` and `29` import across folders (`experiments/` → `pipeline/`, for
+`21_design_variants`); both put `pipeline/` on `sys.path` for that reason.
 
-## Wild-type reference points (for normalising column 5)
+## Findings worth knowing before extending this
 
-| Backbone | Wild-type MFI |
-|---|---|
-| avGFP (F64L parent) | 5,238.6 |
-| amacGFP | 9,348.3 |
-| cgreGFP | 31,398.9 |
-| ppluGFP2 | 16,819.9 |
+1. **Brightness is not comparable across libraries**, even after fold-WT
+   normalisation — two byte-identical sequences read 1.000 and 0.245 in different
+   libraries. Score cross-backbone work with **Spearman only**.
+2. **The best model depends on the regime, and the answers are opposite.** An MLP
+   wins interpolation (ρ 0.911); it loses to plain ridge at unseen positions.
+   XGBoost loses the headline comparison and wins extrapolation decisively.
+3. **Which features help also reverses.** The 6,559 sparse indicators are dead
+   weight for transfer, and are exactly what finds the brightest recombinants.
+4. **ρ ≈ 0.45 at unseen positions is dead-vs-alive separation, not brightness
+   ranking.** Among functional variants it is 0.247; above 1.0× WT it is negative.
+5. **Design by recombination is validated. Design by invention is not** —
+   enrichment at never-assayed positions is below 1. The panel is entirely in the
+   first category.
 
-## Data-quality decisions
+The best feature set for extrapolation is `dense + evo + ESM-2 embeddings`
+(109 features): ρ 0.5185 at unseen positions, 0.553 mean on leave-one-backbone-out.
+Reproducing it needs `experiments/24_esm_embed.py` and `26_esm_benchmark.py`,
+which do require PyTorch and a HuggingFace download.
 
-- **Sequences were reconstructed, not copied.** Each source ships mutation lists, not sequences. Every mutation was validated against the parent residue at that position before being applied; any genotype that failed was dropped.
-- **6,806 of 147,950 source genotypes dropped (4.6 %)**: 6,231 encode indels or premature stops (source notation `.` and `*`) and so have no well-defined full-length protein; 575 had a stated wild-type residue that did not match the parent.
-- **Numbering was re-indexed.** The source files use a zero-shifted convention; column 2 uses standard mature-protein numbering (avGFP S65T, F64L, etc.).
-- Three natural FPs (cgigGFP, scubGFP1, scubGFP2) contain an `X` at an unresolved position in the published sequence — filter these out before training.
-- The 12 engineered-variant sequences were built from wild-type avGFP using each paper's published mutation set; all mutation lists validated cleanly against avGFP.
-
-## Two known gaps
-
-1. **% positive cells is essentially empty.** FACS-seq and colony-imaging assays don't report a percent-positive gate, and mammalian-cell GFP papers rarely publish it in machine-readable form. Filling this column meaningfully needs manual extraction from individual figures.
-2. **FPbase was not harvested.** Its API was unreachable from the sandbox and timed out repeatedly through the web fetcher. Its ~250 curated green FP entries would substantially expand the named-engineered-variant portion.
-
-## Suggested modelling note
-
-Train on column 5 (fold-WT brightness), not column 3. Consider a per-backbone fixed effect or separate models — the four DMS libraries were measured on different instruments and their raw MFI scales are unrelated.
+Even at its best, extrapolation accuracy is ρ ≈ 0.48. That is useful for triage
+and for enriching a shortlist. It is not accurate enough to trust an individual
+prediction.
 
 ## References
 
-- Sarkisyan KS et al. *Local fitness landscape of the green fluorescent protein.* Nature 533:397–401 (2016). doi:10.1038/nature17995
-- Gonzalez Somermeyer L et al. *Heterogeneity of the GFP fitness landscape and data-driven protein design.* eLife 11:e75842 (2022). doi:10.7554/eLife.75842
-- Prasher DC et al. Gene 111:229–233 (1992) · Heim R, Cubitt AB, Tsien RY. Nature 373:663–664 (1995) · Cormack BP et al. Gene 173:33–38 (1996) · Crameri A et al. Nat Biotechnol 14:315–319 (1996) · Waldo GS et al. Nat Biotechnol 17:691–695 (1999) · Pédelacq JD et al. Nat Biotechnol 24:79–88 (2006) · Zacharias DA et al. Science 296:913–916 (2002) · Zapata-Hommer O, Griesbeck O. BMC Biotechnol 3:5 (2003)
+- Sarkisyan KS et al. *Local fitness landscape of the green fluorescent protein.*
+  Nature 533:397–401 (2016). doi:10.1038/nature17995
+- Gonzalez Somermeyer L et al. *Heterogeneity of the GFP fitness landscape and
+  data-driven protein design.* eLife 11:e75842 (2022). doi:10.7554/eLife.75842

@@ -280,7 +280,7 @@ These are the load-bearing conclusions. A new session should read these before d
 
 ## 6. Code inventory
 
-All scripts live in `e_coli_dataset/code/` and resolve paths relative to themselves (`BASE_DIR = Path(__file__).resolve().parent.parent`), so they can be run from anywhere. **Filenames carry a two-digit run-order prefix (`01_` … `31_`), so the folder sorts in execution order** and the table below is that order.
+All scripts live in `pipeline/` (the 8 that produce the deliverable) and `experiments/` (the other 22), and resolve paths relative to themselves (`BASE_DIR = Path(__file__).resolve().parent.parent`), so they can be run from anywhere. **Filenames carry a two-digit run-order prefix (`01_` … `31_`), so the folder sorts in execution order** and the table below is that order.
 
 **How the numbered modules import each other.** A Python module name cannot begin with a digit, so the six scripts that are imported by others are loaded by name instead of with a plain `import`:
 
@@ -290,7 +290,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 ef = importlib.import_module("17_evo_features")
 ```
 
-The six importable modules and who loads them: `03_build_features` and `17_evo_features` ← `21_design_variants`; `16_align_backbones` ← `17_evo_features`; `18_evo_benchmark` ← `20_two_stage_benchmark`, `25_esm_dims_sweep`, `26_esm_benchmark`, `27_lobo_esm`; `24_esm_embed` ← `25_esm_dims_sweep`; `21_design_variants` ← `28_design_optimize`, `29_design_stress_test`. **If you renumber a file, update the string in every script that loads it** — the reference is a string, so nothing will flag it until the script runs.
+The six importable modules and who loads them: `03_build_features` and `17_evo_features` ← `21_design_variants`; `16_align_backbones` ← `17_evo_features`; `18_evo_benchmark` ← `20_two_stage_benchmark`, `25_esm_dims_sweep`, `26_esm_benchmark`, `27_lobo_esm`; `24_esm_embed` ← `25_esm_dims_sweep`; `21_design_variants` ← `28_design_optimize`, `29_design_stress_test`. Only `28` and `29` cross folders (`experiments/` -> `pipeline/`); both insert `pipeline/` on `sys.path` for that reason. **If you renumber a file, update the string in every script that loads it** — the reference is a string, so nothing will flag it until the script runs.
 
 | Script | Step | What it does |
 |---|---|---|
@@ -352,7 +352,7 @@ These shaped nearly every implementation decision, and they will bite a new sess
 
 **Model-specific compute notes.** HistGradientBoosting cannot accept sparse input at all (it is excluded from the comparison; XGBoost is the gradient-boosting representative). Ridge on sparse input must use `solver="lsqr"`, not `sparse_cg` — 6s versus 18s. Exact Lasso needs ~103s per fit, so Lasso and ElasticNet use `SGDRegressor` with the same penalty. Kernel SVR was capped at `gamma='scale'`, `C ≤ 1` and sub-sampled to 6,000 training rows; its numbers are a lower bound, not a fair comparison. A full-data MLP fit takes ~9 minutes and therefore *must* go through the epoch-checkpointing path.
 
-**Deck regeneration requires a symlink.** From `code/`: `ln -sf /sessions/<session>/node_modules node_modules`, then `node 31_make_slides.js`, then remove the symlink. Always validate afterwards with the pptx skill's `validate.py`, and visually check changed slides by converting to PDF and rasterising with `pdftoppm`.
+**Deck regeneration requires a symlink.** From `experiments/`: `ln -sf /sessions/<session>/node_modules node_modules`, then `node 31_make_slides.js`, then remove the symlink. Always validate afterwards with the pptx skill's `validate.py`, and visually check changed slides by converting to PDF and rasterising with `pdftoppm`.
 
 ---
 
