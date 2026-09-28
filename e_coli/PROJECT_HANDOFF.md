@@ -2,7 +2,9 @@
 
 **Purpose of this file.** A complete, self-contained briefing for someone (or some session) picking this project up cold. It covers what the project is for, what has been done, what was found, what the code does, what the environment will and will not allow, and what to do next. It duplicates some of `EDA_summary.md` deliberately — that file is a chronological working log written step by step, whereas this one is organised for a reader who has never seen the project.
 
-**Last updated:** 27 September 2026, after step 13.
+**Last updated:** 28 September 2026. Steps 1-13 complete; 28 Sep was an
+editorial pass only (findings renumbered 1-8 in reading order, and the duplicated
+steps 11-12 sections in `EDA_summary.md` reconciled). No numbers changed.
 **Status:** Thirteen steps complete. Both halves of the objective are answered and re-verified. ESM-2 (previously blocked) has run: its zero-shot scores were a clean negative, but its per-residue embeddings are now the best feature set for any never-assayed-position or new-protein task, replacing the step-9 evo-only model. The design oracle was re-tuned (no gain, kept as-is) and stress-tested on a harder split (the sparse-block finding survives). Nothing remains blocked by the environment.
 
 ---
@@ -254,7 +256,7 @@ the regression TARGET was tested and does not help (see item 5 in section 9),
 and the mammalian dataset (13 rows, heterogeneous assays) was decided against
 merging into training, per finding 1.
 
-## 5. Five findings that constrain everything else
+## 5. Eight findings that constrain everything else
 
 These are the load-bearing conclusions. A new session should read these before designing any new experiment.
 
@@ -266,13 +268,13 @@ These are the load-bearing conclusions. A new session should read these before d
 
 **4. The sparse feature block is dead weight for any transfer task.** It is 6,559 of 6,625 columns and contributes nothing once positions or proteins are unseen (confirmed in step 7 cross-protein and step 8 within-protein). Dropping it costs nothing measurable and is 2–4× faster.
 
-**6. Which features help is REGIME-dependent, and the answer reverses.** Finding 4 above (the sparse block is dead weight) is correct for extrapolation and wrong for recombination. Designing by recombining already-characterised substitutions is the interpolation regime, and there the sparse block is what finds the brightest variants: precision@20 at y ≥ 1.5 goes 0.15 → 0.45 when it is added (paired bootstrap +0.372, 95% CI [+0.100, +0.650]). Step 10's oracle is the only model in this project that uses it. State the regime before stating which features matter.
+**5. Which features help is REGIME-dependent, and the answer reverses.** Finding 4 above (the sparse block is dead weight) is correct for extrapolation and wrong for recombination. Designing by recombining already-characterised substitutions is the interpolation regime, and there the sparse block is what finds the brightest variants: precision@20 at y ≥ 1.5 goes 0.15 → 0.45 when it is added (paired bootstrap +0.372, 95% CI [+0.100, +0.650]). Step 10's oracle is the only model in this project that uses it. State the regime before stating which features matter.
 
-**7. The ~0.45 extrapolation Spearman is dead-vs-alive separation, not brightness ranking.** Restricted to functional variants it is 0.247, and above 1.0× WT it is *negative*. Any downstream use that ranks among functional variants at unseen positions is using a number that does not mean what it appears to mean. See step 10.0.
+**6. The ~0.45 extrapolation Spearman is dead-vs-alive separation, not brightness ranking.** Restricted to functional variants it is 0.247, and above 1.0× WT it is *negative*. Any downstream use that ranks among functional variants at unseen positions is using a number that does not mean what it appears to mean. See step 10.0.
 
-**8. Zero-shot log-odds and embeddings are not the same signal, and only one paid off.** ESM-2 650M masked-marginals scores are significantly worse than the evo features alone (-0.0345 ρ) and add nothing on top of them. Per-residue embeddings from the identical weights add +0.040 ρ (CI [+0.025,+0.055]) and fix the one backbone (ppluGFP2) the evo features hurt. A "does ESM-2 help" question has two different answers depending on which output of the model you use — check both before concluding either way.
+**7. Zero-shot log-odds and embeddings are not the same signal, and only one paid off.** ESM-2 650M masked-marginals scores are significantly worse than the evo features alone (-0.0345 ρ) and add nothing on top of them. Per-residue embeddings from the identical weights add +0.040 ρ (CI [+0.025,+0.055]) and fix the one backbone (ppluGFP2) the evo features hurt. A "does ESM-2 help" question has two different answers depending on which output of the model you use — check both before concluding either way.
 
-**5. Small-sample extrapolation checks overstate differences — twice burned.** Step 4d's 293-row result had a CI crossing zero and was called "suggestive"; step 5's 4,596-row version confirmed and strengthened it. Step 8's 2-fold screen produced an apparent +0.04 win that evaporated entirely on 5 folds. **Always run the full 5-fold pooled benchmark with a paired bootstrap before believing an extrapolation result.**
+**8. Small-sample extrapolation checks overstate differences — twice burned.** Step 4d's 293-row result had a CI crossing zero and was called "suggestive"; step 5's 4,596-row version confirmed and strengthened it. Step 8's 2-fold screen produced an apparent +0.04 win that evaporated entirely on 5 folds. **Always run the full 5-fold pooled benchmark with a paired bootstrap before believing an extrapolation result.**
 
 ---
 

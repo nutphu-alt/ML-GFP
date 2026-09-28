@@ -475,162 +475,6 @@ mutations at never-assayed positions — 10.0 and 10a show that fails.
 
 ---
 
-## Step 11 — ESM-2, unblocked
-
-The sandbox that produced steps 1-10 could not reach `dl.fbaipublicfiles.com`
-or `download.pytorch.org`. A cloud session continuing this project found
-`huggingface.co` reachable instead, so `23_esm_scores.py` gained an `--hf-model`
-backend (transformers, not fair-esm) alongside its original `--checkpoint`
-path. The masked-marginals formulation, token-offset assertions and wild-type
-consistency checks are unchanged.
-
-### 11a Zero-shot scores — a clean negative
-
-ESM-2 650M masked-marginals, same formulation step 6 specified. On the
-settled 5-fold position CV, single mutants:
-
-| arm | rho |
-|---|---|
-| dense (66) | 0.4377 |
-| dense + evo (77) | 0.4785 |
-| dense + ESM-2 650M score (81) | 0.4870 |
-| dense + evo + ESM-2 650M score | 0.4870 (vs +evo: +0.0085, CI [-0.0028,+0.0199]) |
-
-Alone, ESM-2 650M is significantly *worse* than the evo features
-(-0.0345, 95% CI [-0.0511,-0.0172]). On top of them it adds nothing
-significant. Scaling 35M -> 650M did not change this. Step 9's specific
-prediction -- that ESM-2 log-odds would beat three homologs -- is **not
-confirmed**.
-
-### 11b Embeddings — the gain step 9 predicted, for a different formulation
-
-A log-odds score answers "how likely is this substitution". An embedding
-answers "what kind of site is this" -- the structural context a scalar
-collapses away. Same 4-forward-pass trick as the evo features: embed only the
-four wild-type sequences, let a variant inherit its mutated positions'
-per-residue hidden states, PCA to 16 dims (fitted on the wild-type residues
-only -- no labels, fold-safe), aggregate mean + spread per variant.
-
-| arm | rho (single mutants) |
-|---|---|
-| dense + evo (77) | 0.4785 |
-| **dense + evo + ESM-2 650M embed (109)** | **0.5185** |
-
-Paired bootstrap: **+0.0401, 95% CI [+0.0249, +0.0554], P(>0) = 1.000.**
-Stacking the zero-shot score on top of the embedding is slightly *worse*
-(+0.0369) -- the embedding subsumes that signal.
-
-**Width sweep** (8/16/32/64 PCA dims): flat, rho 0.518-0.520, every CI vs 16
-dims spans zero. No tuning gain; 16 is kept.
-
-### 11c Leave-one-backbone-out — the ppluGFP2 question resolved
-
-Step 9d's finding was that ppluGFP2 (18-25% identity, the phylogenetic
-outlier) is the one backbone the evo features actively hurt, and predicted a
-language model would not have that blind spot.
-
-| features | amacGFP | avGFP | cgreGFP | ppluGFP2 | mean |
-|---|---|---|---|---|---|
-| dense+evo (step 9 winner) | 0.486 | 0.666 | 0.613 | 0.314 | 0.520 |
-| **dense+evo+emb** | 0.487 | 0.675 | 0.657 | **0.393** | **0.553** |
-
-ppluGFP2 goes 0.314 -> 0.393, finally beating plain dense (0.339) for the
-first time in the project. Confirmed by an independent benchmark, not just
-the position-CV one.
-
-### 11d The headline model changes
-
-**dense+evo+emb replaces dense+evo as the recommended feature set for any
-never-assayed-position or new-protein task.** Both extrapolation benchmarks
-(position CV and LOBO) confirm the same ordering with bootstrapped
-significance. Finding 3 (regime-dependent features) and finding 7 (the
-extrapolation number is dead/alive separation) both still hold -- this changes
-which features win within extrapolation, not what the ~0.5 ceiling means.
-
----
-
-## Step 12 — re-optimising and stress-testing the design oracle
-
-### 12a Hyperparameter re-tune — negative, correctly
-
-Step 10's design oracle inherited its XGBoost config from step 8, which was
-selected for a different regime (extrapolation, dense-only). A 10-point grid
-x 2 feature sets (with/without the ESM embedding block), selected on
-VALIDATION mean-brightness-of-top-20 and confirmed once on TEST:
-
-tuned vs incumbent, mean_y@20: **+0.060, 95% CI [-0.074, +0.223], P(>0) = 0.785**
-tuned vs incumbent, precision@20 at y>=1.5: +0.029, CI [-0.150, +0.200]
-
-Fails the project's own bar (finding 5: small-sample checks overstate
-differences). **The step-10 oracle configuration is kept unchanged** --
-tuning is exhausted in this regime too, the same conclusion step 8 reached
-for extrapolation.
-
-### 12b A harder, group-disjoint stress test
-
-The design-regime benchmark (step 10c) evaluates on a RANDOM held-out set of
-combinations, which is the right regime but the easy end of this project's
-evaluations -- a test combo at positions {A,B,C} likely has close relatives
-{A,B}, {A,C}, {B,C} in training. This groups rows by (backbone, exact set of
-mutated positions) and splits whole GROUPS 80/20, so no position-set straddles
-train/test. A separate, independently-seeded split (SEED=11) -- not paired
-with the main benchmark, read as a magnitude check.
-
-Precision@20 under the group-disjoint split (27,136 evaluation rows):
-
-| threshold | dense+evo | +sparse | +sparse+emb |
-|---|---|---|---|
-| y >= 1.0 | 1.00 | 0.95 | 0.95 |
-| y >= 1.2 | 1.00 | 0.95 | 0.95 |
-| **y >= 1.5** | **0.40** | **0.85** | **0.80** |
-
-The sparse-block finding **survives the harder split** -- if anything the
-absolute precision is higher than the original random-split benchmark's 0.45,
-because this split's larger test set still allows subset/superset
-generalisation (train has {A,B}, test has {A,B,C}), which is the intended
-mechanism of recombination design, not a leak. The step-10 panel's expected
-yield is not weakened by this check.
-
-### 12c Two small open items, closed
-
-**Log-transform.** Answered analytically, no experiment needed: Spearman(y,
-log1p(y)) = 1.0 exactly, because Spearman is invariant under any monotonic
-transform. Every design/extrapolation metric in this project is rank-based
-(Spearman, precision@k), so a log-transform changes nothing about ranking or
-which variants get picked. It would only affect RMSE/R2, which this project
-already restricts to within-backbone reporting (finding 1) and does not use
-for design selection. Closed without further work.
-
-**Mammalian dataset.** `mammalian/GFP_variants_mammalian_only.xlsx` is 13
-rows of hand-picked named variants (EGFP, sfGFP, mGreenLantern, mNeonGreen,
-Clover...) pulled from different papers, each on a different assay (flow
-cytometry a.u., % positive cells, fold-vs-EGFP by microscopy) in different
-cell types. Both too small to train on and exactly the cross-assay
-incomparability problem finding 1 established. **Recommendation: do not merge
-into the training pipeline.** It is useful instead as an independent external
-check -- diffing its sfGFP sequence against avGFP WT reproduces the same nine
-substitutions used as the step-10e literature positive control (S30R, Y39N,
-S65T, F99S, N105T, Y145F, M153T, V163A, I171V, A206V), confirming that
-control from a source that never touched the DMS assay. V163A and Y39N are
-still rank 1-2 of 1,778 in the oracle's ranking.
-
-Files: `23_esm_scores.py` (patched with the HF backend), `24_esm_embed.py`,
-`26_esm_benchmark.py`, `25_esm_dims_sweep.py`, `27_lobo_esm.py`, `28_design_optimize.py`,
-`29_design_stress_test.py`, `30_make_esm_report.py`. Outputs: `esm.png`,
-`esm_benchmark_35M.csv`, `esm_benchmark_650M.csv`, `esm_bootstrap_*.csv`,
-`esm_dims_sweep.csv`, `lobo_esm.csv`, `design_opt_grid.csv`,
-`design_opt_confirm.csv`, `design_stress_test.csv`,
-`design_stress_bootstrap.csv`.
-
-## Project status: both halves of the objective are now answered and re-verified.
-
-Remaining open items are all deprioritised by choice, not by blocker: a
-full-scale MLP tune only affects the interpolation ceiling (already rho
-0.911, and not what the design deliverable uses), and FPbase harvesting is
-optional enrichment. Nothing is blocked on the environment any longer.
-
----
-
 ## Step 11 — ESM-2, finally run (the project's #1 blocked item)
 
 ### 11.0 How it got unblocked
@@ -648,7 +492,7 @@ the single skipped mutation is the known F64L-parent dissenter from step 6.
 ### 11a Zero-shot log-odds — a clean NEGATIVE
 
 Four arms, identical folds to steps 5/8/9/10a, all refitted here so every
-comparison is exactly paired. Spearman on single mutants at never-seen positions:
+comparison is exactly paired. Spearman at never-seen positions:
 
 | arm | all novel | single mutants |
 |---|---|---|
@@ -671,9 +515,10 @@ The open item asked for *embeddings*, which are a different signal: a log-odds
 scalar says how likely a substitution is, an embedding says what kind of site it
 is. Embedding every variant needs 141k forward passes and is unaffordable, so the
 same trick as everywhere else in this project: embed only the four WILD-TYPES
-(4 forward passes), take per-residue hidden states, PCA-reduce, and let a variant
-inherit the embeddings of the positions it mutates. Constant per
-(backbone, position), no labels, fold-safe — exactly like the evo block.
+(4 forward passes), take per-residue hidden states, PCA-reduce (fitted on the
+wild-type residues only — no labels, fold-safe), and let a variant inherit the
+embeddings of the positions it mutates, aggregated mean + spread. Constant per
+(backbone, position) — exactly like the evo block.
 
 | arm | all novel | single mutants |
 |---|---|---|
@@ -690,10 +535,14 @@ scores on top makes it slightly worse, so **embeddings subsume the log-odds sign
 
 PCA at 8 / 16 / 32 / 64 components (retaining 34-76% of variance): rho_single
 0.5197 / 0.5185 / 0.5204 / 0.5188. Every paired bootstrap against 16 dims spans
-zero. **Performance does not depend on the width.** Consistent with finding 5 —
+zero. **Performance does not depend on the width.** Consistent with finding 8 —
 this project's tuning knobs keep coming back flat.
 
 ### 11d Leave-one-backbone-out — and the ppluGFP2 question answered
+
+Step 9d's finding was that ppluGFP2 (18-25% identity, the phylogenetic outlier)
+is the one backbone the evo features actively hurt, and predicted a language
+model would not have that blind spot.
 
 | features | amacGFP | avGFP | cgreGFP | ppluGFP2 | mean |
 |---|---|---|---|---|---|
@@ -707,20 +556,31 @@ this project's tuning knobs keep coming back flat.
 project. Step 9 predicted a language model would not have that blind spot. It was
 right; it was just wrong about which ESM formulation would deliver it.
 
-**New headline model: `dense + evo + esm-embeddings` (109 features).**
+### 11e The headline model changes
+
+**`dense+evo+emb` (109 features) replaces `dense+evo` as the recommended feature set
+for any never-assayed-position or new-protein task.** Both extrapolation benchmarks
+(position CV and LOBO) confirm the same ordering with bootstrapped significance.
+
+Finding 5 (regime-dependent features) and finding 6 (the extrapolation number is
+dead/alive separation) both still hold — this changes which features win *within*
+extrapolation, not what the ~0.5 ceiling means.
 
 ---
 
-## Step 12 — re-optimising the DESIGN oracle — negative
+## Step 12 — re-optimising and stress-testing the design oracle
+
+### 12a Hyperparameter re-tune — negative, correctly
 
 Step 10's design oracle inherited step 8's configuration, which was selected for a
 different problem (extrapolation, dense features only). Recombination is
 interpolation over a 6,636-feature block and had never been tuned.
 
-Protocol, per the standing convention: a 10-config grid × 2 feature sets scored on
-the random split's **validation** rows (13,589), one winner confirmed on **test**
-(13,581), selection objective = mean measured brightness of the top 20 (continuous;
-precision@20 at a 0.5% base rate is far too noisy to select on).
+Protocol, per the standing convention: a 10-config grid × 2 feature sets
+(with/without the ESM embedding block) scored on the random split's **validation**
+rows (13,589), one winner confirmed on **test** (13,581), selection objective =
+mean measured brightness of the top 20 (continuous; precision@20 at a 0.5% base
+rate is far too noisy to select on).
 
 Validation picked `dense+evo+sparse+emb` with shallower trees (depth 6, 400 trees).
 Confirmed on test against the step-10 incumbent:
@@ -730,11 +590,78 @@ Confirmed on test against the step-10 incumbent:
 | mean y@20 | +0.0604 | [−0.0741, +0.2230] | 0.785 |
 | precision@20 at y≥1.5 | +0.0286 | [−0.1500, +0.2000] | 0.521 |
 
-**Fails the project's bar. The step-10 panel stands unchanged.** Step 8's "tuning is
-exhausted" now holds in the recombination regime too — which it had not been tested
-in. Note also that the ESM embedding block, decisive for extrapolation, does NOT
-significantly help the design regime: the sparse block is already doing the
-site-specific work there.
+**Fails the project's own bar (finding 8). The step-10 oracle configuration is kept
+unchanged and the step-10 panel stands.** Step 8's "tuning is exhausted" now holds in
+the recombination regime too — which it had not been tested in. Note also that the
+ESM embedding block, decisive for extrapolation, does NOT significantly help the
+design regime: the sparse block is already doing the site-specific work there.
+
+### 12b A harder, group-disjoint stress test
+
+The design-regime benchmark (step 10c) evaluates on a RANDOM held-out set of
+combinations, which is the right regime but the easy end of this project's
+evaluations — a test combo at positions {A,B,C} likely has close relatives
+{A,B}, {A,C}, {B,C} in training. This groups rows by (backbone, exact set of
+mutated positions) and splits whole GROUPS 80/20, so no position-set straddles
+train/test. A separate, independently-seeded split (SEED=11) — not paired
+with the main benchmark, read as a magnitude check.
+
+Precision@20 under the group-disjoint split (27,136 evaluation rows):
+
+| threshold | dense+evo | +sparse | +sparse+emb |
+|---|---|---|---|
+| y >= 1.0 | 1.00 | 0.95 | 0.95 |
+| y >= 1.2 | 1.00 | 0.95 | 0.95 |
+| **y >= 1.5** | **0.40** | **0.85** | **0.80** |
+
+The sparse-block finding **survives the harder split** — if anything the
+absolute precision is higher than the original random-split benchmark's 0.45,
+because this split's larger test set still allows subset/superset
+generalisation (train has {A,B}, test has {A,B,C}), which is the intended
+mechanism of recombination design, not a leak. The step-10 panel's expected
+yield is not weakened by this check.
+
+### 12c Two small open items, closed
+
+**Log-transform the target — tested, NEGATIVE.** Note the trap, because this item
+was briefly closed the wrong way. It is true that Spearman(y, log1p(y)) = 1 exactly,
+since Spearman is invariant under any monotonic transform — but that does NOT make
+the experiment unnecessary. Training on a transformed target changes the loss, hence
+the fitted trees, hence the predictions, so the rank correlation of the PREDICTIONS
+against truth can and does move. Measured on the random split with dense+evo+emb:
+
+| target | rho | R2 | RMSE | rho among functional |
+|---|---|---|---|---|
+| **raw y** | **0.8232** | **0.6802** | **0.2367** | **0.4673** |
+| log1p(y) | 0.8181 | 0.6734 | 0.2392 | 0.4369 |
+
+Worse on every metric, and clearly worse among functional variants. **Keep the raw
+target.** (The invariance argument would have been a valid reason to skip the test
+only if the transform were applied to the predictions rather than to the training
+target — it is not the same experiment.)
+
+**Mammalian dataset — excluded.** `mammalian/GFP_variants_mammalian_only.xlsx` is 13
+rows of hand-picked named variants (EGFP, sfGFP, mGreenLantern, mNeonGreen,
+Clover...) pulled from different papers, each on a different assay (flow
+cytometry a.u., % positive cells, fold-vs-EGFP by microscopy) in different
+cell types — 8 distinct engineered FPs across 7 assay methods, 10 usable labels.
+Both too small to train on and exactly the cross-assay incomparability problem
+finding 1 established, and mNeonGreen is not even an avGFP-lineage protein. It is
+not a DMS library of the four backbones, so it cannot enter the modelling pipeline
+at all. **Recommendation: do not merge into training.**
+
+It is useful instead as an independent external check — diffing its sfGFP sequence
+against avGFP WT reproduces the same nine substitutions used as the step-10e
+literature positive control (S30R, Y39N, S65T, F99S, N105T, Y145F, M153T, V163A,
+I171V, A206V), confirming that control from a source that never touched the DMS
+assay. V163A and Y39N are still rank 1-2 of 1,778 in the oracle's ranking.
+
+Files for steps 11-12: `23_esm_scores.py` (patched with the HF backend),
+`24_esm_embed.py`, `25_esm_dims_sweep.py`, `26_esm_benchmark.py`, `27_lobo_esm.py`,
+`28_design_optimize.py`, `30_make_esm_report.py`. Outputs: `esm.png`,
+`esm_benchmark_35M.csv`, `esm_benchmark_650M.csv`, `esm_bootstrap_*.csv`,
+`esm_dims_sweep.csv`, `lobo_esm.csv`, `design_opt_grid.csv`,
+`design_opt_confirm.csv`.
 
 ---
 
@@ -759,9 +686,12 @@ at ≥1.5×, with the lower end applying to designs with no close relative in th
 Even the pessimistic end is ~21× over the 3.0% base rate. The headline claim survives;
 quote the range, not the single number.
 
+Files: `29_design_stress_test.py`. Outputs: `design_stress_test.csv`,
+`design_stress_bootstrap.csv`.
+
 ---
 
-## Open items closed in this session
+## Open items closed in steps 11-13
 
 | item | verdict |
 |---|---|
@@ -772,5 +702,10 @@ quote the range, not the single number.
 | Mammalian dataset | **Excluded.** 13 rows, 8 distinct engineered FPs (incl. mNeonGreen, a different lineage), 7 assay methods, 10 usable labels. Not DMS variants of the four backbones; cannot enter training |
 | Near-neighbour stress test | Done — honest range recorded above |
 
-Still open: a real MSA of the GFP family (the one remaining idea with headroom), and
-a full-scale MLP tune (interpolation ceiling only).
+## Project status: both halves of the objective are now answered and re-verified.
+
+Remaining open items are all deprioritised by choice, not by blocker: a real MSA of
+the GFP family (the one remaining idea with headroom), and a full-scale MLP tune,
+which only affects the interpolation ceiling (already rho 0.911, and not what the
+design deliverable uses). FPbase harvesting is optional enrichment. Nothing is
+blocked on the environment any longer.
