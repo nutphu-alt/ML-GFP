@@ -14,6 +14,7 @@ This project was 100% carried out by AI. It is under active development.
 
 | File | What it is |
 |---|---|
+| [`e_coli_dataset/result.md`](e_coli_dataset/result.md) | **Results.** Every script run end to end on a clean clone, with all 10 figures, explanations, and reproduction notes. Split into pipeline and experiment sections. |
 | [`e_coli_dataset/PROJECT_HANDOFF.md`](e_coli_dataset/PROJECT_HANDOFF.md) | **Start here.** Self-contained briefing: objective, all 13 steps, the five load-bearing findings, code inventory, environment constraints, what to do next. |
 | [`e_coli_dataset/EDA_summary.md`](e_coli_dataset/EDA_summary.md) | Chronological working log, written step by step as the project ran. |
 | [`e_coli_dataset/README.md`](e_coli_dataset/README.md) | Layout, how to run the pipeline, and what lives in `experiments/`. |
