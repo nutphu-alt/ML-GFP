@@ -17,13 +17,13 @@ ESM-2 weights (`facebook/esm2_t33_650M_UR50D`) downloaded from HuggingFace at ru
 
 ## Execution status
 
-All 31 scripts ran to completion. Four required something the run order alone does not
+All 32 scripts ran to completion. Four required something the run order alone does not
 tell you; those are detailed in [Issues found](#issues-found) at the end.
 
 | | Scripts | Result |
 |---|---|---|
 | `pipeline/` | 01, 02, 03, 12, 16, 17, 21, 22 | 8/8 pass |
-| `experiments/` | 04–11, 13–15, 18–20, 23–31 | 23/23 pass |
+| `experiments/` | 04–11, 13–15, 18–20, 23–32 | 24/24 pass |
 
 ---
 
@@ -434,7 +434,100 @@ design panel: about half the designs have no close relative in the library, and 
 the lower bound — precision@20 of 0.65 rather than 0.90 at ≥ 1.2× WT, still roughly 21×
 over the 3.0% base rate.
 
-## 20. Slide deck
+## 20. Designed sequences vs the brightest measured ones
+
+`experiments/32_design_vs_measured.py`
+
+The ten top-ranked designs, all avGFP five-mutation recombinations. The novelty check
+passes: **0 of 10** already exist in the library, by sequence or by mutation set.
+
+| # | Mutations | Predicted (fold-WT) | ± sd | Weakest component |
+|---|---|---|---|---|
+| 1 | `Y39N:N105Y:E111Q:V163A:I188L` | 1.590 | ±0.056 | 1.13 |
+| 2 | `Y39N:T62S:N105Y:V163A:I188L` | 1.584 | ±0.040 | 1.12 |
+| 3 | `D19E:Y39N:N105Y:V163A:I188L` | 1.563 | ±0.049 | 1.13 |
+| 4 | `Y39N:L42M:N105Y:V163A:I188L` | 1.562 | ±0.131 | 1.13 |
+| 5 | `Y39N:T43S:N105Y:V163A:I188L` | 1.557 | ±0.047 | 1.13 |
+| 6 | `Y39N:N105Y:I161V:V163A:I188L` | 1.552 | ±0.062 | 1.13 |
+| 7 | `Y39N:T63S:N105Y:V163A:I188L` | 1.548 | ±0.046 | 1.12 |
+| 8 | `Y39N:K101Q:N105Y:V163A:I188L` | 1.547 | ±0.071 | 1.12 |
+| 9 | `Y39N:N105Y:V163A:I188L:T225S` | 1.540 | ±0.031 | 1.12 |
+| 10 | `Y39N:T62S:N105Y:V163A:T203I` | 1.538 | ±0.101 | 1.12 |
+
+The ten brightest variants actually measured in the same library, each scored by the
+*same* oracle:
+
+| # | Variant | Measured | Oracle predicts | Under-predicted by |
+|---|---|---|---|---|
+| 1 | `T38S:K41R:N105S` | 2.535 | 1.023 | −1.51 |
+| 2 | `K107R:V163G:N212S` | 2.485 | 1.310 | −1.17 |
+| 3 | `K158G` | 2.479 | 0.917 | −1.56 |
+| 4 | `Y39N:T62A:Q157R` | 2.479 | 1.520 | −0.96 |
+| 5 | `V163A:S175R` | 2.447 | 1.386 | −1.06 |
+| 6 | `T43S:K156E:K166R:I171V` | 2.441 | 1.206 | −1.23 |
+| 7 | `I128T:K158E` | 2.436 | 0.944 | −1.49 |
+| 8 | `K156E:Q184L` | 2.386 | 1.031 | −1.35 |
+| 9 | `E6K:D76N:N105Y` | 2.379 | 1.330 | −1.05 |
+| 10 | `Y39H:N135S` | 2.332 | 0.963 | −1.37 |
+
+<p align="center">
+<img width="1200" alt="Designed variants versus the brightest measured ones" src="figures/design_vs_measured.png" />
+</p>
+
+**Figure 11 — produced by `experiments/32_design_vs_measured.py`.** Read the raw numbers
+across the two tables and the designs look worse — 1.59 predicted against 2.53 measured.
+That reading is wrong, and panel (b) is why. The oracle compresses hard: it scores K158G
+at 0.92 when that variant measures 2.48× WT, and under-predicts all ten of the best known
+variants by 0.96–1.56. Put both groups on the model's own scale, which is the only
+comparison it supports, and the ordering inverts — the designs average **1.56** against
+**1.16** for the brightest known variants, so every design outranks everything measured
+that the model has seen. Panel (a) shows the designs are also tightly clustered, with
+seed-ensemble error bars well under the spread between them.
+
+**What this does not claim.** Nothing here predicts these will measure above 2.53× WT. A
+predicted 1.56 is not a brightness estimate; it is a rank position on a compressed scale.
+The calibrated expectation comes from the step-13 stress test — precision@20 of 0.65–0.90
+at ≥ 1.2× WT and ~0.35–0.45 at ≥ 1.5×, against a 2.9% base rate in this library. So most
+of the panel should clear 1.2× and a minority 1.5×, which is a useful enrichment and not a
+record-breaking claim.
+
+**One caveat about the panel's structure.** Nine of the ten share the core
+`Y39N:N105Y:V163A`, varying only in the fifth substitution. These are not ten independent
+bets — if that core disappoints, most of the panel goes with it. Y39N and V163A are also
+two of the superfolder-GFP mutations the oracle rediscovered unaided (§8), which is
+reassuring about the core but means the panel leans on a known-good scaffold rather than
+finding something unfamiliar. For bench work, treating this as roughly three independent
+hypotheses rather than ten would be the honest reading.
+
+<details>
+<summary>Full amino-acid sequences of the ten designs (FASTA)</summary>
+
+```
+>design_1|Y39N:N105Y:E111Q:V163A:I188L|pred=1.590
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAQVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_2|Y39N:T62S:N105Y:V163A:I188L|pred=1.584
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVSTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_3|D19E:Y39N:N105Y:V163A:I188L|pred=1.563
+MSKGEELFTGVVPILVELEGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_4|Y39N:L42M:N105Y:V163A:I188L|pred=1.562
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKMTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_5|Y39N:T43S:N105Y:V163A:I188L|pred=1.557
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLSLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_6|Y39N:N105Y:I161V:V163A:I188L|pred=1.552
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGVKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_7|Y39N:T63S:N105Y:V163A:I188L|pred=1.548
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTSLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_8|Y39N:K101Q:N105Y:V163A:I188L|pred=1.547
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFQDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+>design_9|Y39N:N105Y:V163A:I188L:T225S|pred=1.540
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVTTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPLGDGPVLLPDNHYLSTQSALSKDPNEKRDHMVLLEFVSAAGITHGMDELYK
+>design_10|Y39N:T62S:N105Y:V163A:T203I|pred=1.538
+MSKGEELFTGVVPILVELDGDVNGHKFSVSGEGEGDATNGKLTLKFICTTGKLPVPWPTLVSTLSYGVQCFSRYPDHMKQHDFFKSAMPEGYVQERTIFFKDDGYYKTRAEVKFEGDTLVNRIELKGIDFKEDGNILGHKLEYNYNSHNVYIMADKQKNGIKANFKIRHNIEDGSVQLADHYQQNTPIGDGPVLLPDNHYLSIQSALSKDPNEKRDHMVLLEFVTAAGITHGMDELYK
+```
+
+</details>
+
+## 21. Slide deck
 
 `experiments/31_make_slides.js`
 

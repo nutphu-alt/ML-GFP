@@ -205,7 +205,7 @@ scripts write into it without creating it themselves — so `02` onward will fai
 means a clone already has the directory, but the pipeline still assumes `01` ran
 first, since everything downstream reads its `gfp_clean.pkl`.)
 
-**All 31 scripts are verified to run end to end from a clean clone**, with every figure
+**All 32 scripts are verified to run end to end from a clean clone**, with every figure
 and number recorded in [`e_coli_dataset/result.md`](e_coli_dataset/result.md). The
 headline values reproduce exactly — `ridge_combined` ρ 0.8802 / R² 0.7049 on the random
 split, ρ 0.8135 / R² 0.5516 on position-holdout, split sizes 112,914 / 14,115 / 14,115
