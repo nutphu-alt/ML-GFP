@@ -213,9 +213,11 @@ trained on the full training split, orange on the fixed 12,000-row subsample tha
 eight families be compared on equal data. Random forest and kernel SVR appear only in
 orange because neither scales to 113k rows, and both are clearly weakest (ρ ≈ 0.66–0.70) —
 high-dimensional sparse binary input suits them badly. L1 is actively harmful: lasso and
-elastic_net trail ridge and both chose the smallest penalty offered. **Note the MLP has no
-blue bar** — script 06 does not train it at full scale; that is script 08's job, and its
-result is not merged back into this figure. The full-data MLP number is in §11.
+elastic_net trail ridge and both chose the smallest penalty offered. The MLP's full-tier
+bar is the tallest on the random split at ρ 0.9096 — but it only appears if `08` has run
+**before** `07`, because `06` never trains the MLP at full scale and `08` is what writes
+that row into `model_comparison.csv`. Following the plain numeric order leaves the MLP
+with an orange bar only, understating the best model by about 0.06 ρ.
 
 ## 11. The full-data MLP, and whether it survives extrapolation
 
@@ -459,29 +461,36 @@ None of these change a conclusion. The MLP differences all trace to epoch count,
 qualitative finding — XGBoost best at extrapolation, MLP worst, evo features significant,
 embeddings significant, zero-shot scores not, tuning exhausted — holds.
 
-# Issues found
+# Issues found, and fixed
 
-Four things that a clean clone hits, none of which are visible from the run order alone.
+Four things a clean clone hits, none visible from the run order alone. All four are now
+fixed; each fix was verified by deliberately re-triggering the failure.
 
-**1. `pipeline/22_make_design_report.py` depends on `experiments/18_evo_benchmark.py`.**
-It reads `output/extrap_cv/evo_fold*.npz`, which only exists after the five-fold CV and the
-evo benchmark have run. Running `pipeline/` on its own fails with `FileNotFoundError`. The
-`pipeline/` and `experiments/` folders are not independently runnable, and 22 must come
-last.
+**1. `pipeline/` is not runnable on its own.** `pipeline/22_make_design_report.py` reads
+`output/extrap_cv/evo_fold*.npz`, produced by `experiments/18_evo_benchmark.py`, which in
+turn needs `experiments/10_cross_val_extrapolation.py`. Running the `pipeline/` folder
+end to end died with a bare `FileNotFoundError`. **Fixed:** 22 now checks for the fold
+files up front and exits with the exact commands to run first. The folder split does not
+match the dependency graph — 22 must run last, after `experiments/`.
 
-**2. `08_train_mlp_full.py` needs `--alpha 0.001` on the position split, and nothing says
-so at the point of use.** The flag defaults to `1e-4`, so the documented run order produces
-`mlp_position_alpha0.0001.joblib` — while `09_analyze_extrapolation.py` hard-codes
-`mlp_position_alpha0.001.joblib` and dies with `FileNotFoundError`. The correct invocation
-is in 08's own docstring but not in the README run order.
+**2. `08_train_mlp_full.py` needs `--alpha 0.001` on the position split.** The flag
+defaults to `1e-4`, so the plain run order writes `mlp_position_alpha0.0001.joblib` while
+`09_analyze_extrapolation.py` hard-coded `mlp_position_alpha0.001.joblib` and died. The
+correct invocation was only in 08's docstring. **Fixed:** 09 now prefers the documented
+checkpoint, falls back to whichever exists while saying so, and if none exists prints the
+exact command instead of a traceback. The README run order documents the flag.
 
-**3. `09_analyze_extrapolation.py` prints `MISMATCH` by design.** It compares the
-reconstructed MLP ρ against a hard-coded 0.8228 from the original session; any rerun with a
-different epoch count trips it. Here it printed `0.8200 (expected 0.8228) MISMATCH`. This
-is a stale constant, not a pipeline fault.
+**3. `09_analyze_extrapolation.py` printed `MISMATCH` on any honest rerun.** It compares
+the reconstructed MLP ρ against a hard-coded 0.8228 from the original session, but the MLP
+early-stops, so a different epoch count legitimately lands nearby. **Fixed:** the check
+now grades the gap — under 0.002 matches, under 0.02 is reported as an expected
+epoch-count difference, and only a larger gap is flagged as worth investigating. It now
+prints `0.8200 (reference 0.8228; differs by 0.0028 — expected if the MLP stopped at a
+different epoch, not a fault)`.
 
-**4. `model_comparison.png` has no full-tier MLP bar.** Script 06 never trains the MLP at
-full scale — 08 does, separately — and 08's result is not merged into
-`model_comparison.csv`. The figure is correct for what it plots, but reading the MLP's
-headline number off it would understate the model by about 0.06 ρ. The full-data figure is
-in §11.
+**4. `model_comparison.png` was missing the full-tier MLP bar — an ordering problem, not a
+plumbing one.** `06` never trains the MLP at full scale, but `08` does and *does* write
+that row into `model_comparison.csv`. The bar was absent only because the documented order
+runs `07` before `08`, so the summary ran before the row existed. **Fixed:** `07` re-run
+after `08`, and the README now says `08` must precede `07`. The figure above includes the
+full-tier MLP, which is the best model on the random split at ρ 0.9096.

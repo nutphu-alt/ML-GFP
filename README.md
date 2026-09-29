@@ -177,11 +177,27 @@ python pipeline/12_derive_wt_sequences.py
 python pipeline/16_align_backbones.py
 python pipeline/17_evo_features.py
 python pipeline/21_design_variants.py
-python pipeline/22_make_design_report.py     # -> output/design_panel.csv
 ```
 
-That is the whole path to the deliverable. To reproduce the supporting analysis,
-run `experiments/` in numeric order alongside it.
+Then `experiments/` in numeric order, and **`pipeline/22_make_design_report.py` last of
+all** — it reads fold predictions produced by `experiments/18_evo_benchmark.py`, so
+`pipeline/` is *not* runnable end to end on its own. Run out of order it now stops with
+instructions instead of a bare `FileNotFoundError`.
+
+### Three places where numeric order is not the run order
+
+1. **`08` before `07`.** `06` never trains the MLP at full scale; `08` does, and writes
+   into the same `model_comparison.csv`. Run `07` first and the leaderboard and its
+   figure have no full-tier MLP row — the best model on the random split, so the summary
+   understates it by about 0.06 ρ.
+2. **`08 --split position` needs `--alpha 0.001`.** The flag defaults to `1e-4` while
+   `09` looks for the `0.001` checkpoint. `09` now falls back and reports which it used,
+   but the documented run is
+   `python experiments/08_train_mlp_full.py --split position --alpha 0.001`.
+3. **`pipeline/22` runs last**, as above.
+
+Steps 23–27 (ESM-2) additionally need `torch` and download ~2.5 GB of ESM-2 weights from
+HuggingFace on first use; `23` takes roughly 6 minutes per backbone on CPU.
 
 **Run them in numeric order.** `01` is what creates `e_coli_dataset/output/`, and the later
 scripts write into it without creating it themselves — so `02` onward will fail with
@@ -189,10 +205,11 @@ scripts write into it without creating it themselves — so `02` onward will fai
 means a clone already has the directory, but the pipeline still assumes `01` ran
 first, since everything downstream reads its `gfp_clean.pkl`.)
 
-**Steps 01-05 are verified to run end to end from a clean clone** and reproduce the
-numbers in the tables above exactly — `ridge_combined` ρ 0.8802 / R² 0.7049 on the
-random split, ρ 0.8135 / R² 0.5516 on position-holdout, and the split sizes
-112,914 / 14,115 / 14,115 and 83,986 / 27,609 / 29,549.
+**All 31 scripts are verified to run end to end from a clean clone**, with every figure
+and number recorded in [`e_coli_dataset/result.md`](e_coli_dataset/result.md). The
+headline values reproduce exactly — `ridge_combined` ρ 0.8802 / R² 0.7049 on the random
+split, ρ 0.8135 / R² 0.5516 on position-holdout, split sizes 112,914 / 14,115 / 14,115
+and 83,986 / 27,609 / 29,549, and the five-fold CV bootstrap.
 
 ### Scripts that take arguments
 

@@ -55,6 +55,18 @@ def load_core():
 
 def stratum_spearman():
     """Panel (a): what the extrapolation-regime model actually ranks."""
+    # These fold predictions come from experiments/18_evo_benchmark.py, which in
+    # turn needs experiments/10_cross_val_extrapolation.py. This script therefore
+    # depends on experiments/ despite living in pipeline/, and must be run LAST --
+    # pipeline/ is not runnable end to end on its own.
+    missing = [k for k in range(5) if not (CV_DIR / f"evo_fold{k}.npz").exists()]
+    if missing:
+        raise SystemExit(
+            f"missing {CV_DIR.name}/evo_fold{{{','.join(map(str, missing))}}}.npz\n"
+            "This script runs LAST, after the experiments/ benchmarks. Run:\n"
+            "  python ../experiments/10_cross_val_extrapolation.py   (repeat until done)\n"
+            "  python ../experiments/18_evo_benchmark.py             (repeat until done)\n"
+            "then re-run this script.")
     pred, yt = [], []
     for k in range(5):
         d = np.load(CV_DIR / f"evo_fold{k}.npz", allow_pickle=True)
