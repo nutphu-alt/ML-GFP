@@ -286,7 +286,7 @@ there (0.3874).
 
 ## 11. Eight model families, 104 configurations
 
-`experiments/06_compare_models.py`, `experiments/07_summarize_comparison.py`
+`experiments/06_compare_models.py`, `experiments/08_summarize_comparison.py`
 
 All 104 configurations completed across both splits, hyperparameters selected on
 validation only. Full-tier test results:
@@ -303,7 +303,7 @@ validation only. Full-tier test results:
 <img width="1200" alt="Eight-model leaderboard, both splits and both tiers" src="figures/model_comparison.png" />
 </p>
 
-**Figure 5 — produced by `experiments/07_summarize_comparison.py`.** Blue bars are models
+**Figure 5 — produced by `experiments/08_summarize_comparison.py`.** Blue bars are models
 trained on the full training split, orange on the fixed 12,000-row subsample that lets all
 eight families be compared on equal data. Random forest and kernel SVR appear only in
 orange because neither scales to 113k rows, and both are clearly weakest (ρ ≈ 0.66–0.70) —
@@ -316,7 +316,7 @@ with an orange bar only, understating the best model by about 0.06 ρ.
 
 ## 12. The full-data MLP, and whether it survives extrapolation
 
-`experiments/08_train_mlp_full.py`, `experiments/09_analyze_extrapolation.py`
+`experiments/07_train_mlp_full.py`, `experiments/09_analyze_extrapolation.py`
 
 | Split | Epochs | Val ρ | Test ρ | Test R² |
 |---|---|---|---|---|
@@ -558,28 +558,36 @@ embeddings significant, zero-shot scores not, tuning exhausted — holds.
 
 # Run-order notes
 
-Three constraints that numeric order does not reveal. These are **not** resolved bugs —
-the dependency and the defaults are unchanged, and each will still catch a fresh clone
-run in plain numeric order. What changed is that two of them now fail loudly instead of
-silently. (A fourth issue, a stale self-check constant in `09` that printed `MISMATCH` on
-any honest rerun, is genuinely gone.)
+Running these scripts used to have three traps. All three are now fixed at the root
+rather than documented around, and the rule that replaces them is a single line:
 
-**1. `pipeline/` is not runnable on its own — `22` must go last.**
-`pipeline/22_make_design_report.py` reads `output/extrap_cv/evo_fold*.npz`, produced by
-`experiments/18_evo_benchmark.py`, which in turn needs
-`experiments/10_cross_val_extrapolation.py`. The folder split does not match the
-dependency graph. `22` now checks for the fold files and exits with the exact commands to
-run first, rather than a bare `FileNotFoundError` — but the dependency itself remains.
+> **Run 01 → 32 strictly by number, ignoring which folder each script is in.**
 
-**2. `08 --split position` needs `--alpha 0.001`.** The flag defaults to `1e-4`, so the
-plain run order trains a *different model* from the documented one and writes it under a
-different checkpoint name. `09` now prefers the documented checkpoint, falls back to
-whichever exists while saying which it used, and prints the exact command if none is
-found. The default itself is unchanged, so omitting the flag still gives you a different
-position-split MLP than the one these results were produced with.
+All 26 dependencies between scripts are satisfied by that order, with no exceptions.
 
-**3. `08` must run before `07`.** `06` never trains the MLP at full scale; `08` does, and
-writes that row into the same `model_comparison.csv`. Running `07` first — which is what
-numeric order tells you to do — produces a leaderboard and a Figure 5 with no full-tier
-MLP, understating the best model on the random split by about 0.06 ρ. Nothing in the code
-prevents this; the figure above was produced by re-running `07` after `08`.
+**1. Folder-by-folder was the wrong instruction — numeric order was always right.**
+`pipeline/22_make_design_report.py` needs `experiments/18_evo_benchmark.py`, which looked
+like a broken folder split. It is not: 18 < 22, so plain numeric order already satisfies
+it, along with all four other cross-folder dependencies. The folders group scripts by
+purpose, not sequence. `22` also now checks for the fold files it needs and exits with
+the commands to run first, rather than a bare `FileNotFoundError`.
+
+**2. `07_train_mlp_full.py` now defaults `--alpha` per split.** It previously defaulted to
+`1e-4` for both, so `--split position` silently trained a different model from the
+documented one (α = 1e-3) and wrote it under a checkpoint name `09` did not look for.
+The default now follows the split, matching the script's own docstring, and `09` reports
+which checkpoint it loaded either way.
+
+**3. The full-data MLP now runs before the summary.** `06` never trains the MLP at full
+scale; the full-data MLP script does, appending its row to the same
+`model_comparison.csv`. The summariser was numbered `07` and the MLP trainer `08`, so
+numeric order ran the summary first and silently dropped the best model on the random
+split from both the leaderboard and Figure 5. **The two were swapped** — the MLP trainer
+is now `07_train_mlp_full.py` and the summariser `08_summarize_comparison.py` — which was
+the only ordering violation in the whole project. The summariser additionally refuses to
+write a leaderboard with no full-tier MLP row, as a backstop against running them out of
+order by hand.
+
+A fourth issue, a stale self-check constant in `09` that printed `MISMATCH` on any honest
+rerun, was replaced by a graded comparison that distinguishes an expected epoch-count
+difference from a real problem.

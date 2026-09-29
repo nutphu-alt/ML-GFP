@@ -72,7 +72,7 @@ def main() -> None:
     preds["xgboost"] = model.predict(X[te])
 
     # full-data MLP: restore the BEST epoch's weights, not the last epoch's.
-    # 08_train_mlp_full.py names its checkpoint after --alpha, and its docstring
+    # 07_train_mlp_full.py names its checkpoint after --alpha, and its docstring
     # says to use 0.001 for the position split -- but the flag DEFAULTS to 1e-4,
     # so a run that followed the plain run order leaves alpha0.0001 instead.
     # Prefer the documented checkpoint, fall back to whatever exists, and say
@@ -84,7 +84,7 @@ def main() -> None:
     if ckpt_path is None:
         raise SystemExit(
             f"no position-split MLP checkpoint in {ckpt_dir}.\n"
-            "Run:  python 08_train_mlp_full.py --split position --alpha 0.001")
+            "Run:  python 07_train_mlp_full.py --split position --alpha 0.001")
     if ckpt_path.name != "mlp_position_alpha0.001.joblib":
         print(f"note: using {ckpt_path.name}; the documented run for this step is "
               "--split position --alpha 0.001")

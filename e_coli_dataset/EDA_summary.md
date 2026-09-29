@@ -19,8 +19,8 @@ e_coli_dataset/
 │   ├── 04_train_baselines.py           step 3b:  ridge baselines, both splits
 │   ├── 05_analyze_results.py           step 3c:  extrapolation-by-novelty breakdown + figure
 │   ├── 06_compare_models.py            step 4a:  8 families x 104 configs (resume-safe)
-│   ├── 07_summarize_comparison.py      step 4b:  leaderboard + comparison figure
-│   ├── 08_train_mlp_full.py            step 4c:  full-data MLP, epoch checkpointing
+│   ├── 08_summarize_comparison.py      step 4b:  leaderboard + comparison figure
+│   ├── 07_train_mlp_full.py            step 4c:  full-data MLP, epoch checkpointing
 │   ├── 09_analyze_extrapolation.py     step 4d:  novelty breakdown for the full-data MLP
 │   ├── 10_cross_val_extrapolation.py   step 5a:  5-fold position CV (resume-safe, core benchmark)
 │   ├── 11_analyze_extrapolation_cv.py  step 5b:  pooled folds + paired bootstrap + figure
@@ -126,7 +126,7 @@ On pure extrapolation `ridge_sparse` scores **exactly** the mean-predictor floor
 
 **Second limitation** (middle panel of `output/baseline_results.png`): the model badly under-separates the dark mode, predicting ~0.5–0.75 for variants whose true brightness is ~0. An additive model cannot express "one bad mutation kills the protein regardless of the rest," which is exactly what the dark spike is.
 
-## Step 4: eight-model comparison (`experiments/06_compare_models.py`, `07_summarize_comparison.py`)
+## Step 4: eight-model comparison (`experiments/06_compare_models.py`, `08_summarize_comparison.py`)
 
 104 configurations across 8 model families, all on identical features and identical test sets. Hyperparameters selected on the **validation** split by Spearman ρ; test is never used for selection.
 
@@ -158,7 +158,7 @@ Test R² tells the same story even more strongly on the random split: MLP **0.87
 
 **L1 is actively harmful.** Lasso and ElasticNet trail ridge by ~0.03 ρ, and their best configs sit at the smallest penalty tested (α=1e-6) — i.e. the search wanted *as little L1 as possible*. Most mutations contribute a little signal, so zeroing coefficients discards real information.
 
-**The MLP wins outright once trained on the full data** (`experiments/08_train_mlp_full.py`). It reaches ρ=0.911 / R²=0.870 on the random split and ρ=0.823 on position-holdout, beating ridge on both. The prediction made from the subsample tier held: MLP led at equal data (0.848 vs 0.829), and scaling to all 113k rows added a further ~0.06 ρ.
+**The MLP wins outright once trained on the full data** (`experiments/07_train_mlp_full.py`). It reaches ρ=0.911 / R²=0.870 on the random split and ρ=0.823 on position-holdout, beating ridge on both. The prediction made from the subsample tier held: MLP led at equal data (0.848 vs 0.829), and scaling to all 113k rows added a further ~0.06 ρ.
 
 The gap is widest in R² (0.870 vs 0.705), which says the MLP is not merely ranking variants better but predicting their actual brightness far more accurately — consistent with it being the only model in the comparison that can represent the non-additive "one bad mutation kills the protein" behaviour driving the dark mode.
 
@@ -166,7 +166,7 @@ The gap is widest in R² (0.870 vs 0.705), which says the MLP is not merely rank
 
 ### Compute caveats (these constrained the search)
 
-- **RandomForest and kernel SVR could not train on the full data** — hence the sub12k tier. The MLP was subsequently trained at full scale by `08_train_mlp_full.py`, which drives epochs manually with `partial_fit`, scores the real validation split after each one, keeps the best epoch's weights, and checkpoints to disk — so the ~9-minute fit can span multiple runs. Both full-data MLPs stopped early (best epoch 6 of 10). Its `alpha` was carried over from the sub12k search rather than re-tuned at full scale.
+- **RandomForest and kernel SVR could not train on the full data** — hence the sub12k tier. The MLP was subsequently trained at full scale by `07_train_mlp_full.py`, which drives epochs manually with `partial_fit`, scores the real validation split after each one, keeps the best epoch's weights, and checkpoints to disk — so the ~9-minute fit can span multiple runs. Both full-data MLPs stopped early (best epoch 6 of 10). Its `alpha` was carried over from the sub12k search rather than re-tuned at full scale.
 - **Kernel SVR** additionally used only 6,000 training rows (recorded in `n_train`), and its search was capped at `gamma='scale'`, `C ≤ 1`. Larger values explode the support-vector count past the wall-clock limit. Its numbers are therefore a *lower bound*.
 - **Lasso/ElasticNet use SGD**, not exact coordinate descent — exact Lasso needs ~103s per fit on this matrix. Same penalty, approximate solver.
 - **HistGradientBoosting was excluded** — it cannot accept sparse input, and densifying 113k × 6,625 needs ~3 GB. XGBoost represents gradient boosting here.

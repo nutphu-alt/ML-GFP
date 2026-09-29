@@ -90,7 +90,7 @@ Three results worth knowing before using any of this:
 Scripts carry a two-digit run-order prefix and resolve paths relative to themselves,
 so they run from anywhere. They are split by role:
 
-**`e_coli_dataset/pipeline/`** — the 8 scripts that produce the deliverable, in order.
+**`e_coli_dataset/pipeline/`** — the 9 scripts that produce the deliverable, in order.
 Core dependencies only; no PyTorch, no model downloads.
 
 ```
@@ -102,6 +102,7 @@ Core dependencies only; no PyTorch, no model downloads.
 17_evo_features.py            11 cross-homolog evolutionary features
 21_design_variants.py         design oracle, benchmark, beam search
 22_make_design_report.py      assembles design_panel.csv + design.png
+32_design_vs_measured.py      designs vs the brightest measured variants
 ```
 
 **`e_coli_dataset/experiments/`** — the work that established why the pipeline looks
@@ -111,8 +112,8 @@ the way it does, including the negative results.
 04_train_baselines.py         ridge baselines, both splits
 05_analyze_results.py         extrapolation-by-novelty breakdown
 06_compare_models.py          8 model families x 104 configs
-07_summarize_comparison.py    leaderboard + figure
-08_train_mlp_full.py          full-data MLP, epoch checkpointing
+07_train_mlp_full.py          full-data MLP, epoch checkpointing
+08_summarize_comparison.py    leaderboard + figure
 09_analyze_extrapolation.py   novelty breakdown for the full-data MLP
 10_cross_val_extrapolation.py 5-fold position CV — the core benchmark
 11_analyze_extrapolation_cv.py pooled folds + paired bootstrap
@@ -169,47 +170,39 @@ git clone https://github.com/nutphu-alt/ML-GFP.git
 cd ML-GFP
 pip install -r requirements.txt
 cd e_coli_dataset
+```
 
+**Run the scripts 01 → 32 strictly by number, ignoring which folder each sits in.**
+
+```bash
 python pipeline/01_clean_gfp_data.py         # 15 xlsx -> 141,150 rows, ~4 min
 python pipeline/02_make_splits.py            # three split schemes + leakage checks
 python pipeline/03_build_features.py         # sparse (6,559) + dense (66) matrices
-python pipeline/12_derive_wt_sequences.py
-python pipeline/16_align_backbones.py
-python pipeline/17_evo_features.py
-python pipeline/21_design_variants.py
+python experiments/04_train_baselines.py --split random
+python experiments/04_train_baselines.py --split position
+python experiments/05_analyze_results.py
+python experiments/06_compare_models.py --split random      # repeat until it says done
+python experiments/06_compare_models.py --split position    # repeat until it says done
+python experiments/07_train_mlp_full.py --split random      # repeat until it says done
+python experiments/07_train_mlp_full.py --split position    # repeat until it says done
+python experiments/08_summarize_comparison.py
+# ... and so on through 32
 ```
 
-Then `experiments/` in numeric order, and **`pipeline/22_make_design_report.py` last of
-all** — it reads fold predictions produced by `experiments/18_evo_benchmark.py`, so
-`pipeline/` is *not* runnable end to end on its own. Run out of order it now stops with
-instructions instead of a bare `FileNotFoundError`.
+All 26 dependencies between scripts are satisfied by that order, with no exceptions to
+remember. `pipeline/` and `experiments/` group scripts by *purpose*, not by sequence, and
+five dependencies legitimately cross between them — most notably
+`pipeline/22_make_design_report.py`, which needs `experiments/18_evo_benchmark.py`.
+**Neither folder is runnable end to end on its own**, so do not run folder-by-folder.
 
-### Three places where numeric order is not the run order
+`01` is what creates `e_coli_dataset/output/`; most later scripts write into it without
+creating it, so skipping `01` on a fresh clone fails with `FileNotFoundError`.
 
-1. **`08` before `07`.** `06` never trains the MLP at full scale; `08` does, and writes
-   into the same `model_comparison.csv`. Run `07` first and the leaderboard and its
-   figure have no full-tier MLP row — the best model on the random split, so the summary
-   understates it by about 0.06 ρ.
-2. **`08 --split position` needs `--alpha 0.001`.** The flag defaults to `1e-4` while
-   `09` looks for the `0.001` checkpoint. `09` now falls back and reports which it used,
-   but the documented run is
-   `python experiments/08_train_mlp_full.py --split position --alpha 0.001`.
-3. **`pipeline/22` runs last**, as above.
-
-Steps 23–27 (ESM-2) additionally need `torch` and download ~2.5 GB of ESM-2 weights from
-HuggingFace on first use; `23` takes roughly 6 minutes per backbone on CPU.
-
-**Run them in numeric order.** `01` is what creates `e_coli_dataset/output/`, and the later
-scripts write into it without creating it themselves — so `02` onward will fail with
-`FileNotFoundError` if you skip `01` on a fresh clone. (The tracked `output/.gitkeep`
-means a clone already has the directory, but the pipeline still assumes `01` ran
-first, since everything downstream reads its `gfp_clean.pkl`.)
-
-**All 32 scripts are verified to run end to end from a clean clone**, with every figure
-and number recorded in [`e_coli_dataset/result.md`](e_coli_dataset/result.md). The
-headline values reproduce exactly — `ridge_combined` ρ 0.8802 / R² 0.7049 on the random
-split, ρ 0.8135 / R² 0.5516 on position-holdout, split sizes 112,914 / 14,115 / 14,115
-and 83,986 / 27,609 / 29,549, and the five-fold CV bootstrap.
+Six scripts are **resume-safe by design** (`06`, `07`, `10`, `13`, `14`, `23`): they carry
+a `TIME_BUDGET`, append results as they complete, skip finished work on re-run, and exit
+with a "re-run to continue" message. Invoke them repeatedly until they report completion.
+This was a workaround for a ~180 s per-call limit in the original environment; it is
+harmless elsewhere.
 
 ### Scripts that take arguments
 
@@ -220,25 +213,25 @@ Most take none. These do:
 | `03_build_features.py` | `[--limit N]` (debug: only process N rows) |
 | `04_train_baselines.py` | `--split {random,position}` **(required)** |
 | `06_compare_models.py` | `--split {random,position}` **(required)** |
-| `08_train_mlp_full.py` | `--split {random,position}` **(required)**, `[--alpha A]` |
+| `07_train_mlp_full.py` | `--split {random,position}` **(required)**; `--alpha` now defaults per split |
 | `10_cross_val_extrapolation.py` | `[--models ridge,xgboost,mlp]` |
 | `14_tune_xgb_extrapolation.py` | `--phase {grid,eval,analyze}` **(required)**, run in that order |
-| `21_design_variants.py` | `[--backbone avGFP] [--phase benchmark\|beam]` |
+| `21_design_variants.py` | `[--backbone avGFP] [--phase all\|validate\|benchmark\|design]` |
 | `22_make_design_report.py` | `[--backbone avGFP]` |
 | `23_esm_scores.py` | `[--hf-model facebook/esm2_t33_650M_UR50D]` or `[--checkpoint path.pt]` |
 | `24_esm_embed.py` | `[--hf-model ...] [--dims 16]` |
 | `26_esm_benchmark.py` | `[--esm-suffix 650M] [--with-embeddings]` |
 
-Steps 23-27 (ESM-2) need `torch` and network access to `huggingface.co` on first run,
-which downloads the weights (~2.5 GB for 650M). Everything else is offline.
-
-Several scripts are **resume-safe by design** (`06`, `10`, `13`, `14`, `23`): they
-carry a `TIME_BUDGET` constant, append results as they complete, skip finished work on
-re-run, and exit with a "re-run to continue" message. Expect to invoke some of them
-repeatedly. This was a workaround for a ~180 s per-call wall-clock limit in the
-original environment; it is harmless elsewhere.
+Steps 23–27 (ESM-2) need `torch` and download ~2.5 GB of weights from HuggingFace on first
+use; `23` takes roughly 6 minutes per backbone on CPU. Everything else is offline.
 
 The deck (`31_make_slides.js`) needs `npm install pptxgenjs`.
+
+**All 32 scripts are verified to run end to end from a clean clone**, with every figure
+and number recorded in [`e_coli_dataset/result.md`](e_coli_dataset/result.md). The
+headline values reproduce exactly — `ridge_combined` ρ 0.8802 / R² 0.7049 on the random
+split, ρ 0.8135 / R² 0.5516 on position-holdout, split sizes 112,914 / 14,115 / 14,115
+and 83,986 / 27,609 / 29,549, and the five-fold CV bootstrap.
 
 ## Standing conventions
 

@@ -65,8 +65,17 @@ def metrics(y_true, y_pred, prefix: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--split", choices=["random", "position"], required=True)
-    parser.add_argument("--alpha", type=float, default=1e-4)
+    # Default alpha follows the split, per the module docstring above: the
+    # sub12k search picked 1e-4 for random and 1e-3 for position. A single
+    # default meant `--split position` silently trained a different model from
+    # the documented one, under a checkpoint name 09 does not look for.
+    parser.add_argument("--alpha", type=float, default=None,
+                        help="L2 penalty; defaults to 1e-4 (random) / 1e-3 (position)")
     args = parser.parse_args()
+    if args.alpha is None:
+        args.alpha = {"random": 1e-4, "position": 1e-3}[args.split]
+        print(f"alpha not given — using the documented {args.alpha:g} for "
+              f"--split {args.split}")
 
     CKPT_DIR.mkdir(parents=True, exist_ok=True)
     ckpt_path = CKPT_DIR / f"mlp_{args.split}_alpha{args.alpha}.joblib"

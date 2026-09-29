@@ -105,7 +105,7 @@ Baseline results (Ridge, best alpha on validation):
 
 Two failure modes were diagnosed: truly dead variants get predicted at 0.5–0.75 rather than 0 (an additive model cannot express "one lethal mutation kills the protein"), and accuracy falls steadily as more of a variant is novel — on pure extrapolation, sparse-feature ridge scores *exactly the mean-predictor floor*, because a never-seen position has no fitted coefficient.
 
-### Step 4 — eight model families, 104 configurations (`06_compare_models.py`, `07_summarize_comparison.py`, `08_train_mlp_full.py`)
+### Step 4 — eight model families, 104 configurations (`06_compare_models.py`, `08_summarize_comparison.py`, `07_train_mlp_full.py`)
 
 Ridge, Lasso, ElasticNet, LinearSVR, kernel SVR, RandomForest, XGBoost and an MLP, each hyperparameter-searched, selected on validation only. Run in two tiers because RandomForest and kernel SVR cannot train on 113k rows: a `full` tier and a `sub12k` tier that trains on 12,000 rows but scores the same full test set.
 
@@ -300,8 +300,8 @@ The six importable modules and who loads them: `03_build_features` and `17_evo_f
 | `04_train_baselines.py` | 3b | Ridge variants + HistGradientBoosting, both splits |
 | `05_analyze_results.py` | 3c | Extrapolation-by-novelty breakdown, baseline figure |
 | `06_compare_models.py` | 4a | 104-config, 8-family comparison. Resume-safe |
-| `07_summarize_comparison.py` | 4b | Leaderboard (selected on validation) + figure |
-| `08_train_mlp_full.py` | 4c | Full-data MLP via manual epoch loop + checkpointing |
+| `08_summarize_comparison.py` | 4b | Leaderboard (selected on validation) + figure |
+| `07_train_mlp_full.py` | 4c | Full-data MLP via manual epoch loop + checkpointing |
 | `09_analyze_extrapolation.py` | 4d | Novelty breakdown for the full-data MLP |
 | `10_cross_val_extrapolation.py` | 5a | 5-fold position CV. Resume-safe, the core benchmark |
 | `11_analyze_extrapolation_cv.py` | 5b | Pools folds, paired bootstrap, figure |
@@ -344,7 +344,7 @@ These shaped nearly every implementation decision, and they will bite a new sess
 
 **Background processes do not survive between calls.** `nohup ... &` is useless — each call gets a fresh process namespace, confirmed by `ps aux` showing no survivors. There is no way to run something long in the background and come back to it.
 
-**The established workaround is resume-safe scripting**, used throughout: append each result to a CSV as it completes and skip already-done work on re-run (`06_compare_models.py`, `13_lobo_eval.py`, `14_tune_xgb_extrapolation.py`), or checkpoint model state with joblib after every epoch (`08_train_mlp_full.py`, `10_cross_val_extrapolation.py`). Scripts carry a `TIME_BUDGET` constant (100–150s) and exit cleanly with a "re-run to continue" message. Expect to invoke some of them a dozen times.
+**The established workaround is resume-safe scripting**, used throughout: append each result to a CSV as it completes and skip already-done work on re-run (`06_compare_models.py`, `13_lobo_eval.py`, `14_tune_xgb_extrapolation.py`), or checkpoint model state with joblib after every epoch (`07_train_mlp_full.py`, `10_cross_val_extrapolation.py`). Scripts carry a `TIME_BUDGET` constant (100–150s) and exit cleanly with a "re-run to continue" message. Expect to invoke some of them a dozen times.
 
 **Network egress is restricted to an allowlist.** `pypi.org` returns 200; `huggingface.co`, `dl.fbaipublicfiles.com` and `download.pytorch.org` all return nothing. This was diagnosed by tracing CONNECT tunnels, and re-verified on 26 Sep 2026 — it is a proxy allowlist, **not** the user's own internet connection. Consequence: `pip install` from PyPI works, but PyTorch's CPU index is blocked and plain `pip install torch` pulls a multi-gigabyte CUDA stack that cannot finish in one call.
 

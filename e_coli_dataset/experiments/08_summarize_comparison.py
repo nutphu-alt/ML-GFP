@@ -37,6 +37,23 @@ def main() -> None:
     df = pd.read_csv(OUT_DIR / "model_comparison.csv")
     print(f"total configs evaluated: {len(df)}")
 
+    # 06 never trains the MLP at full scale -- 07 does, and appends its row to
+    # this same CSV. This script used to be numbered 07 and so ran first, which
+    # silently dropped the best model on the random split from the leaderboard
+    # and the figure; the two were swapped so numeric order is now correct.
+    # This check is the backstop for anyone running them out of order by hand.
+    have = {(r.split, r.model) for r in
+            df[df["tier"] == "full"].itertuples()}
+    missing = [s for s in ("random", "position") if (s, "mlp") not in have]
+    if missing:
+        raise SystemExit(
+            "model_comparison.csv has no full-tier MLP row for: "
+            + ", ".join(missing) + ".\n"
+            "06 does not train the MLP at full scale; 07 does. Run it first:\n"
+            + "".join(f"  python 07_train_mlp_full.py --split {s}\n" for s in missing)
+            + "then re-run this script. (Writing the summary now would understate\n"
+              "the best model on the random split by about 0.06 rho.)")
+
     best = build_leaderboard(df)
     cols = ["split", "tier", "model", "config", "n_train",
             "val_spearman", "test_spearman", "test_pearson", "test_rmse",
