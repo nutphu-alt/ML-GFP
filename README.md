@@ -6,8 +6,6 @@ The objective of this project is to use a machine learning model to optimize gre
 fluorescent protein sequence — predicting fold-wild-type brightness from amino-acid
 sequence, and using that predictor to propose brighter variants.
 
-This project was 100% carried out by AI. It is under active development.
-
 ---
 
 ## Documentation
